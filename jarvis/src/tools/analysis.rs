@@ -149,7 +149,7 @@ fn extract_python_import(line: &str) -> Option<String> {
 
 fn extract_quoted_string(s: &str) -> Option<String> {
     let trimmed = s.trim();
-    if let Some(start_quote) = trimmed.find(|c| c == '\'' || c == '"') {
+    if let Some(start_quote) = trimmed.find(['\'', '"']) {
         let quote_char = trimmed.chars().nth(start_quote)?;
         let after_quote = &trimmed[start_quote + 1..];
         if let Some(end_quote) = after_quote.find(quote_char) {
