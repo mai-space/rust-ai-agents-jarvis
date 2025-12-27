@@ -8,19 +8,23 @@ pub struct MockLlm;
 impl LlmProvider for MockLlm {
     async fn generate(&self, prompt: &str) -> Result<String> {
         if prompt.contains("Product Owner") {
-            Ok("I have analyzed the request and files.".to_string())
+            Ok("HANDOFF RequirementsEngineer InitialPlanningComplete PO_Analyzed_Codebase".to_string())
         } else if prompt.contains("Requirements Engineer") {
-            Ok("1. Do this. 2. Do that.".to_string())
+            Ok("HANDOFF SeniorDeveloper PlanGenerated 1.Implement_Login".to_string())
         } else if prompt.contains("Senior Developer") {
-            Ok("I have implemented the plan.".to_string())
+            Ok("HANDOFF AccessibilityExpert ImplementationComplete Dev_Implemented_Login".to_string())
+        } else if prompt.contains("Accessibility Expert") {
+            Ok("HANDOFF SEOExpert AccessibilityCheckPassed Accessibility_Verified".to_string())
+        } else if prompt.contains("SEO Expert") {
+            Ok("HANDOFF SecurityExpert SEOCheckPassed SEO_Verified".to_string())
         } else if prompt.contains("QA Tester") {
-            Ok("Everything looks good.".to_string())
+            Ok("HANDOFF Librarian QAVerificationPassed QA_Verified".to_string())
         } else if prompt.contains("Security Expert") {
-            Ok("No vulnerabilities found.".to_string())
+            Ok("HANDOFF QATester SecurityCheckPassed Security_Verified".to_string())
         } else if prompt.contains("Librarian") {
-            Ok("Documentation updated.".to_string())
+            Ok("SUCCESS Task finalized by Librarian".to_string())
         } else {
-            Ok("Default mock response".to_string())
+            Ok("SUCCESS Default mock response".to_string())
         }
     }
 

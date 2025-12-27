@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::agents::{Agent, AgentContext, AgentOutput, run_llm_agent};
 use crate::tools::Tool;
 use crate::providers::LlmProvider;
 use anyhow::Result;
@@ -27,27 +27,6 @@ impl Agent for QATester {
     }
 
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput> {
-        let prompt = format!(
-            "Identity: {}\nImplementation Context: {}\nHistory: {:?}\n\nVerify the implementation. Run tests using available tools. If everything is correct, hand off to Librarian. If there are issues, hand off back to Senior Developer with details.",
-            self.identity(),
-            context.task,
-            context.history
-        );
-
-        let response = self.llm.generate(&prompt).await?;
-        
-        if response.contains("FAIL") || response.contains("RETRY") || response.contains("SeniorDeveloper") {
-            Ok(AgentOutput::Handoff {
-                target: "SeniorDeveloper".to_string(),
-                reason: "QA verification failed, needs fixes".to_string(),
-                context: format!("QA Feedback: {}", response),
-            })
-        } else {
-            Ok(AgentOutput::Handoff {
-                target: "Librarian".to_string(),
-                reason: "QA verification passed".to_string(),
-                context: format!("QA Feedback: {}", response),
-            })
-        }
+        run_llm_agent(self, self.llm.clone(), context).await
     }
 }

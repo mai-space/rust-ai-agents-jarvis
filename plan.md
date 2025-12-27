@@ -37,10 +37,10 @@ To ensure stability and prevent infinite loops, Jarvis uses a **Central Manager 
 | :--- | :--- | :--- | :--- | :--- |
 | **1. Planning** | **Product Owner (PO)** | Orchestrates the feature. Scans codebase structure. | `list_files`, `read_structure` | Requirements Engineer |
 | | **Requirements Engineer** | Translates PO context into a technical step-by-step plan. | `None` (Pure Logic) | Senior Developer |
-| **2. Implementation** | **Senior Developer** | Expert implementation. Writes clean, modular code. | `write_file`, `apply_patch` | Security Expert |
-| **3. Review** | **Security Expert** | Scans for SQLi, XSS, and weak dependencies. | `static_analysis` | QA Tester (Pass) / Developer (Fail) |
-| | **Accessibility Expert** | *Optional (Frontend)*: Checks ARIA, contrast, and semantics. | `read_diff` | SEO Expert |
-| | **SEO Expert** | *Optional (Frontend)*: Ensures meta tags and SSR compatibility. | `read_diff` | Security Expert |
+| **2. Implementation** | **Senior Developer** | Expert implementation. Writes clean, modular code. | `write_file`, `apply_patch` | Accessibility Expert |
+| **3. Review** | **Accessibility Expert** | Checks ARIA, contrast, and semantic tags. Applies fixes. | `read_diff`, `apply_patch` | SEO Expert |
+| | **SEO Expert** | Ensures meta tags, SSR compatibility, and headers. Applies fixes. | `read_diff`, `apply_patch` | Security Expert |
+| | **Security Expert** | Scans for SQLi, XSS, and weak dependencies. | `static_analysis` | QA Tester (Pass) / Developer (Fail) |
 | **4. Validation** | **QA Tester** | Writes and runs tests. Validates feature completeness. | `run_tests`, `write_test` | Librarian (Pass) / Developer (Fail) |
 | | **Librarian** | Finalizes task. Updates documentation and KDocs. | `write_file`, `read_file` | **Complete** |
 
@@ -71,3 +71,15 @@ To prevent agents from getting stuck in "correction loops" (e.g., QA finding the
 - [x] Add Security Expert and Librarian.
 - [x] Implement Loop Management and Human-in-the-loop triggers.
 - [x] Comprehensive testing and documentation.
+
+### Phase 5: Refined Review & Tools
+- [x] Implement `AccessibilityExpert` and `SEOExpert` agents.
+- [x] Implement `read_diff` and `apply_patch` tools.
+- [x] Refine handoff logic to include the full review chain.
+- [x] Update integration tests to cover the expanded squad.
+
+### Phase 6: Real Tooling & Autonomous Execution
+- [x] Implement `ReadStructureTool` for recursive codebase scanning.
+- [x] Implement autonomous tool-calling loop in agents.
+- [x] Connect all specialized agents to their respective 'real' tools.
+- [x] Verify tool-calling autonomous behavior with integration tests.

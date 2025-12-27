@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::agents::{Agent, AgentContext, AgentOutput, run_llm_agent};
 use crate::tools::Tool;
 use crate::providers::LlmProvider;
 use anyhow::Result;
@@ -27,27 +27,6 @@ impl Agent for SecurityExpert {
     }
 
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput> {
-        let prompt = format!(
-            "Identity: {}\nImplementation Context: {}\nHistory: {:?}\n\nScan the implementation for security vulnerabilities. If safe, hand off to QA Tester. If vulnerabilities are found, hand off back to Senior Developer.",
-            self.identity(),
-            context.task,
-            context.history
-        );
-
-        let response = self.llm.generate(&prompt).await?;
-        
-        if response.contains("FAIL") || response.contains("VULNERABILITY") || response.contains("SeniorDeveloper") {
-            Ok(AgentOutput::Handoff {
-                target: "SeniorDeveloper".to_string(),
-                reason: "Security vulnerabilities found".to_string(),
-                context: format!("Security Feedback: {}", response),
-            })
-        } else {
-            Ok(AgentOutput::Handoff {
-                target: "QATester".to_string(),
-                reason: "Security check passed".to_string(),
-                context: format!("Security check passed: {}", response),
-            })
-        }
+        run_llm_agent(self, self.llm.clone(), context).await
     }
 }

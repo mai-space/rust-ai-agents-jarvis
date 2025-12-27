@@ -2,6 +2,7 @@ use jarvis::orchestration::Manager;
 use jarvis::providers::mock::MockLlm;
 use jarvis::agents::planning::{ProductOwner, RequirementsEngineer};
 use jarvis::agents::development::SeniorDeveloper;
+use jarvis::agents::refinement::{AccessibilityExpert, SEOExpert};
 use jarvis::agents::validation::QATester;
 use jarvis::agents::security::SecurityExpert;
 use jarvis::agents::documentation::Librarian;
@@ -15,6 +16,8 @@ async fn test_manager_flow() {
     let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
     let re = Arc::new(RequirementsEngineer::new(llm.clone()));
     let dev = Arc::new(SeniorDeveloper::new(llm.clone(), vec![]));
+    let accessibility = Arc::new(AccessibilityExpert::new(llm.clone(), vec![]));
+    let seo = Arc::new(SEOExpert::new(llm.clone(), vec![]));
     let security = Arc::new(SecurityExpert::new(llm.clone(), vec![]));
     let qa = Arc::new(QATester::new(llm.clone(), vec![]));
     let lib = Arc::new(Librarian::new(llm.clone(), vec![]));
@@ -22,6 +25,8 @@ async fn test_manager_flow() {
     manager.register_agent("ProductOwner".to_string(), po);
     manager.register_agent("RequirementsEngineer".to_string(), re);
     manager.register_agent("SeniorDeveloper".to_string(), dev);
+    manager.register_agent("AccessibilityExpert".to_string(), accessibility);
+    manager.register_agent("SEOExpert".to_string(), seo);
     manager.register_agent("SecurityExpert".to_string(), security);
     manager.register_agent("QATester".to_string(), qa);
     manager.register_agent("Librarian".to_string(), lib);
@@ -33,7 +38,7 @@ async fn test_manager_flow() {
 
 #[tokio::test]
 async fn test_manager_retry_limit() {
-    let llm = Arc::new(MockLlm);
+    let _llm = Arc::new(MockLlm);
     let mut manager = Manager::new(1); // Set low retry limit
 
     // Mock agent that always hands off to itself (loop)
@@ -57,4 +62,31 @@ async fn test_manager_retry_limit() {
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Max retries reached"));
+}
+
+#[tokio::test]
+async fn test_agent_tool_calling() {
+    struct ToolLlm;
+    #[async_trait::async_trait]
+    impl jarvis::providers::LlmProvider for ToolLlm {
+        async fn generate(&self, prompt: &str) -> anyhow::Result<String> {
+            if prompt.contains("Tool 'list_files' result") {
+                Ok("SUCCESS Tool worked".to_string())
+            } else {
+                Ok("CALL list_files {\"path\": \".\"}".to_string())
+            }
+        }
+        async fn get_embeddings(&self, _text: &str) -> anyhow::Result<Vec<f32>> { Ok(vec![]) }
+    }
+
+    let llm = Arc::new(ToolLlm);
+    let mut manager = Manager::new(3);
+
+    let tools = vec![Arc::new(jarvis::tools::fs::ListFilesTool) as Arc<dyn jarvis::tools::Tool>];
+    let agent = Arc::new(ProductOwner::new(llm.clone(), tools));
+    manager.register_agent("PO".to_string(), agent);
+
+    let result = manager.run("PO", "list files".to_string()).await.unwrap();
+
+    assert_eq!(result, "Tool worked");
 }

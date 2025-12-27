@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::agents::{Agent, AgentContext, AgentOutput, run_llm_agent};
 use crate::tools::Tool;
 use crate::providers::LlmProvider;
 use anyhow::Result;
@@ -27,18 +27,6 @@ impl Agent for Librarian {
     }
 
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput> {
-        let prompt = format!(
-            "Identity: {}\nTask Context: {}\nHistory: {:?}\n\nFinalize the task by updating documentation. Use available tools to read or write files. Once done, provide a final summary of the work.",
-            self.identity(),
-            context.task,
-            context.history
-        );
-
-        let response = self.llm.generate(&prompt).await?;
-        
-        // In a real scenario, the agent would use WriteFileTool here.
-        // For the first release, we'll assume it has done its job if the LLM says so.
-
-        Ok(AgentOutput::Success(format!("Task finalized by Librarian: {}", response)))
+        run_llm_agent(self, self.llm.clone(), context).await
     }
 }

@@ -5,21 +5,21 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-pub struct ProductOwner {
+pub struct AccessibilityExpert {
     llm: Arc<dyn LlmProvider>,
     tools: Vec<Arc<dyn Tool>>,
 }
 
-impl ProductOwner {
+impl AccessibilityExpert {
     pub fn new(llm: Arc<dyn LlmProvider>, tools: Vec<Arc<dyn Tool>>) -> Self {
         Self { llm, tools }
     }
 }
 
 #[async_trait]
-impl Agent for ProductOwner {
+impl Agent for AccessibilityExpert {
     fn identity(&self) -> String {
-        "Product Owner: You orchestrate the feature. Read the user request, scan the current codebase structure to identify relevant files, and delegate to the Requirements Engineer.".to_string()
+        "Accessibility Expert: Scan changed HTML/JSX. Check for ARIA labels, contrast, and semantic tags. Apply fixes if needed.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
@@ -31,24 +31,25 @@ impl Agent for ProductOwner {
     }
 }
 
-pub struct RequirementsEngineer {
+pub struct SEOExpert {
     llm: Arc<dyn LlmProvider>,
+    tools: Vec<Arc<dyn Tool>>,
 }
 
-impl RequirementsEngineer {
-    pub fn new(llm: Arc<dyn LlmProvider>) -> Self {
-        Self { llm }
+impl SEOExpert {
+    pub fn new(llm: Arc<dyn LlmProvider>, tools: Vec<Arc<dyn Tool>>) -> Self {
+        Self { llm, tools }
     }
 }
 
 #[async_trait]
-impl Agent for RequirementsEngineer {
+impl Agent for SEOExpert {
     fn identity(&self) -> String {
-        "Requirements Engineer: Create a technical plan. Analyze the PO's context. Output a step-by-step implementation plan for the Developer.".to_string()
+        "SEO Expert: Ensure meta tags, SSR compatibility, and semantic headers are intact. Apply fixes if needed.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
-        vec![]
+        self.tools.clone()
     }
 
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput> {

@@ -7,8 +7,10 @@ use jarvis::agents::development::SeniorDeveloper;
 use jarvis::agents::validation::QATester;
 use jarvis::agents::security::SecurityExpert;
 use jarvis::agents::documentation::Librarian;
-use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool};
+use jarvis::agents::refinement::{AccessibilityExpert, SEOExpert};
+use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool, ApplyPatchTool, ReadStructureTool};
 use jarvis::tools::shell::{RunTestsTool, StaticAnalysisTool};
+use jarvis::tools::git::ReadDiffTool;
 use std::sync::Arc;
 use std::io::{self, Write};
 use clap::Parser;
@@ -66,6 +68,7 @@ async fn main() -> Result<()> {
     let po_tools = vec![
         Arc::new(ListFilesTool) as Arc<dyn jarvis::tools::Tool>,
         Arc::new(ReadFileTool) as Arc<dyn jarvis::tools::Tool>,
+        Arc::new(ReadStructureTool) as Arc<dyn jarvis::tools::Tool>,
     ];
 
     let po = Arc::new(ProductOwner::new(llm.clone(), po_tools));
@@ -74,8 +77,17 @@ async fn main() -> Result<()> {
     let dev_tools = vec![
         Arc::new(WriteFileTool) as Arc<dyn jarvis::tools::Tool>,
         Arc::new(ReadFileTool) as Arc<dyn jarvis::tools::Tool>,
+        Arc::new(ApplyPatchTool) as Arc<dyn jarvis::tools::Tool>,
     ];
     let dev = Arc::new(SeniorDeveloper::new(llm.clone(), dev_tools));
+
+    let refinement_tools = vec![
+        Arc::new(ReadDiffTool) as Arc<dyn jarvis::tools::Tool>,
+        Arc::new(ApplyPatchTool) as Arc<dyn jarvis::tools::Tool>,
+        Arc::new(WriteFileTool) as Arc<dyn jarvis::tools::Tool>,
+    ];
+    let accessibility = Arc::new(AccessibilityExpert::new(llm.clone(), refinement_tools.clone()));
+    let seo = Arc::new(SEOExpert::new(llm.clone(), refinement_tools));
     
     let qa_tools = vec![
         Arc::new(RunTestsTool) as Arc<dyn jarvis::tools::Tool>,
@@ -96,6 +108,8 @@ async fn main() -> Result<()> {
     manager.register_agent("ProductOwner".to_string(), po);
     manager.register_agent("RequirementsEngineer".to_string(), re);
     manager.register_agent("SeniorDeveloper".to_string(), dev);
+    manager.register_agent("AccessibilityExpert".to_string(), accessibility);
+    manager.register_agent("SEOExpert".to_string(), seo);
     manager.register_agent("SecurityExpert".to_string(), security);
     manager.register_agent("QATester".to_string(), qa);
     manager.register_agent("Librarian".to_string(), librarian);

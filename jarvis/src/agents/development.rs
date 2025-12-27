@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::agents::{Agent, AgentContext, AgentOutput, run_llm_agent};
 use crate::tools::Tool;
 use crate::providers::LlmProvider;
 use anyhow::Result;
@@ -27,23 +27,6 @@ impl Agent for SeniorDeveloper {
     }
 
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput> {
-        let prompt = format!(
-            "Identity: {}\nTask/Plan: {}\nHistory: {:?}\n\nImplement the changes as described in the plan. Use the available tools if necessary. Once done, hand off to QA Tester.",
-            self.identity(),
-            context.task,
-            context.history
-        );
-
-        let response = self.llm.generate(&prompt).await?;
-        
-        // In a real scenario, the LLM would decide which tool to call.
-        // For this implementation, we simulate the tool usage or assume it has been used.
-        // For now, let's just return success or handoff to QA.
-        
-        Ok(AgentOutput::Handoff {
-            target: "SecurityExpert".to_string(),
-            reason: "Implementation complete".to_string(),
-            context: format!("Dev context: {}", response),
-        })
+        run_llm_agent(self, self.llm.clone(), context).await
     }
 }
