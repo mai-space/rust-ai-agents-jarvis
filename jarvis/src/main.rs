@@ -338,6 +338,9 @@ async fn main() -> Result<()> {
     } else if let Some(task) = args.task {
         let result = manager.run_with_session("ProductOwner", task, args.session_id).await?;
         println!("\n--- FINAL RESULT ---\n{}", result);
+        
+        // Print metrics summary
+        println!("\n{}", manager.get_metrics_summary());
     } else {
         println!("No task provided. Use --task \"your task\" or run 'jarvis setup' to configure.");
     }
