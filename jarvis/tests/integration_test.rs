@@ -90,3 +90,40 @@ async fn test_agent_tool_calling() {
 
     assert_eq!(result, "Tool worked");
 }
+
+#[tokio::test]
+async fn test_manager_hitl() {
+    let _llm = Arc::new(MockLlm);
+    
+    struct MockHitl;
+    impl jarvis::orchestration::HumanInTheLoop for MockHitl {
+        fn consult(&self, _agent: &str, _task: &str, _history: &[String]) -> anyhow::Result<String> {
+            Ok("human instruction".to_string())
+        }
+    }
+
+    struct LoopAgent;
+    #[async_trait::async_trait]
+    impl jarvis::agents::Agent for LoopAgent {
+        fn identity(&self) -> String { "Loop".to_string() }
+        fn capabilities(&self) -> Vec<Arc<dyn jarvis::tools::Tool>> { vec![] }
+        async fn process(&self, context: &mut jarvis::agents::AgentContext) -> anyhow::Result<jarvis::agents::AgentOutput> {
+            if context.task.contains("human instruction") {
+                Ok(jarvis::agents::AgentOutput::Success("Recovered".to_string()))
+            } else {
+                Ok(jarvis::agents::AgentOutput::Handoff {
+                    target: "Loop".to_string(),
+                    reason: "Looping".to_string(),
+                    context: "Looping".to_string(),
+                })
+            }
+        }
+    }
+
+    let mut manager = Manager::new(1).with_hitl(Arc::new(MockHitl));
+    manager.register_agent("Loop".to_string(), Arc::new(LoopAgent));
+
+    let result = manager.run("Loop", "Start".to_string()).await.unwrap();
+
+    assert_eq!(result, "Recovered");
+}

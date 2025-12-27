@@ -180,6 +180,7 @@ pub async fn run_llm_agent(
             if line.starts_with("Thought:") { line = line["Thought:".len()..].trim(); }
             if line.starts_with("Agent Thought:") { line = line["Agent Thought:".len()..].trim(); }
             if line.starts_with("Agent:") { line = line["Agent:".len()..].trim(); }
+            if line.starts_with("Command:") { line = line["Command:".len()..].trim(); }
 
             // Strip bullets or markdown headers
             if line.starts_with("* ") { line = line["* ".len()..].trim(); }
@@ -348,7 +349,7 @@ fn sanitize_model_response(response: &str) -> String {
         if line.is_empty() { continue; }
 
         // Skip lines that are just echoes of headers
-        if line.starts_with("Identity:") || line.starts_with("Task:") || line.starts_with("Assistant:") || line.starts_with("System:") || line.starts_with("Agent:") || line.starts_with("Agent Thought:") {
+        if line.starts_with("Identity:") || line.starts_with("Task:") || line.starts_with("Assistant:") || line.starts_with("System:") || line.starts_with("Agent:") || line.starts_with("Agent Thought:") || line.starts_with("Command:") {
             // Check if there is anything after the colon
             let parts: Vec<&str> = line.splitn(2, ':').collect();
             if parts.len() > 1 && parts[1].trim().is_empty() {
@@ -364,6 +365,7 @@ fn sanitize_model_response(response: &str) -> String {
             if line.starts_with("Agent:") { line = line["Agent:".len()..].trim(); }
             if line.starts_with("Agent Thought:") { line = line["Agent Thought:".len()..].trim(); }
             if line.starts_with("System:") { line = line["System:".len()..].trim(); }
+            if line.starts_with("Command:") { line = line["Command:".len()..].trim(); }
         }
 
         if line.starts_with("Assistant") { line = line["Assistant".len()..].trim(); }
@@ -423,8 +425,8 @@ mod tests {
         let expected = "SUCCESS Done";
         assert_eq!(sanitize_model_response(input), expected);
 
-        let input = "Agent Thought: I will do X\nAgent: CALL tool {}";
-        let expected = "I will do X\nCALL tool {}";
+        let input = "Agent Thought: I will do X\nAgent: CALL tool {}\nCommand: SUCCESS Done";
+        let expected = "I will do X\nCALL tool {}\nSUCCESS Done";
         assert_eq!(sanitize_model_response(input), expected);
     }
 
@@ -466,6 +468,15 @@ mod tests {
         let out = run_llm_agent(&DummyAgent, llm, &mut context).await?;
         if let AgentOutput::Success(res) = out {
             assert_eq!(res, "Okay");
+        } else {
+            panic!("Expected Success, got {:?}", out);
+        }
+
+        // Test case 3: Command prefix
+        let llm = Arc::new(MockLlm("Agent Thought: I'm done\nCommand: SUCCESS Finished".to_string()));
+        let out = run_llm_agent(&DummyAgent, llm, &mut context).await?;
+        if let AgentOutput::Success(res) = out {
+            assert_eq!(res, "Finished");
         } else {
             panic!("Expected Success, got {:?}", out);
         }
