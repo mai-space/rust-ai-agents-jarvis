@@ -97,6 +97,15 @@ To start a new task with Jarvis:
 jarvis --task "Implement a simple REST API for user registration using Axum"
 ```
 
+### Providing Context Files
+You can provide specific files as context to help agents work more efficiently. This is especially useful when you want to focus on specific parts of your codebase:
+
+```bash
+jarvis --task "Refactor the authentication logic" --context-files src/auth.rs,src/models.rs
+```
+
+The context files will be read and included in the agent's prompt, providing immediate access to relevant code without requiring the agent to search for files. Multiple files can be specified using comma-separated paths.
+
 ### Resuming a Session
 If a task was interrupted or you want to continue working on it:
 

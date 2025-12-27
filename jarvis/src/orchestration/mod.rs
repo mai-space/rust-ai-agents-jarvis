@@ -122,7 +122,7 @@ impl Manager {
                 available_agents: self.agents.keys().cloned().collect(),
                 project_metadata: project_metadata.clone(),
                 handoff_count: HashMap::new(),
-                context_files: context_files,
+                context_files,
             }
         };
 
