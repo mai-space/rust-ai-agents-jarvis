@@ -2,30 +2,52 @@ use crate::mcp::types::*;
 use anyhow::{Result, anyhow};
 use serde_json::{json, Value};
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, AsyncRead, AsyncWrite, AsyncBufRead};
 use tokio::process::{Child, Command};
 
 pub struct McpClient {
-    child: Child,
+    reader: Box<dyn AsyncBufRead + Unpin + Send>,
+    writer: Box<dyn AsyncWrite + Unpin + Send>,
     next_id: i64,
+    _child: Option<Child>,
 }
 
 impl McpClient {
     pub async fn spawn(command: &str, args: &[&str]) -> Result<Self> {
-        let child = Command::new(command)
+        let mut child = Command::new(command)
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()?;
 
+        let stdin = child.stdin.take().ok_or_else(|| anyhow!("Failed to open stdin"))?;
+        let stdout = child.stdout.take().ok_or_else(|| anyhow!("Failed to open stdout"))?;
+
         let mut client = Self {
-            child,
+            reader: Box::new(BufReader::new(stdout)),
+            writer: Box::new(stdin),
             next_id: 1,
+            _child: Some(child),
         };
 
         client.initialize().await?;
 
+        Ok(client)
+    }
+
+    pub async fn new<R, W>(reader: R, writer: W) -> Result<Self>
+    where
+        R: AsyncRead + Send + Unpin + 'static,
+        W: AsyncWrite + Send + Unpin + 'static,
+    {
+        let mut client = Self {
+            reader: Box::new(BufReader::new(reader)),
+            writer: Box::new(writer),
+            next_id: 1,
+            _child: None,
+        };
+        client.initialize().await?;
         Ok(client)
     }
 
@@ -40,15 +62,12 @@ impl McpClient {
             id: json!(id),
         };
 
-        let stdin = self.child.stdin.as_mut().ok_or_else(|| anyhow!("Failed to open stdin"))?;
         let request_str = serde_json::to_string(&request)? + "\n";
-        stdin.write_all(request_str.as_bytes()).await?;
-        stdin.flush().await?;
+        self.writer.write_all(request_str.as_bytes()).await?;
+        self.writer.flush().await?;
 
-        let stdout = self.child.stdout.as_mut().ok_or_else(|| anyhow!("Failed to open stdout"))?;
-        let mut reader = BufReader::new(stdout);
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
+        self.reader.read_line(&mut line).await?;
 
         if line.is_empty() {
             return Err(anyhow!("MCP server closed connection"));
@@ -78,10 +97,9 @@ impl McpClient {
             "jsonrpc": "2.0",
             "method": "notifications/initialized"
         });
-        let stdin = self.child.stdin.as_mut().ok_or_else(|| anyhow!("Failed to open stdin"))?;
         let notif_str = serde_json::to_string(&notification)? + "\n";
-        stdin.write_all(notif_str.as_bytes()).await?;
-        stdin.flush().await?;
+        self.writer.write_all(notif_str.as_bytes()).await?;
+        self.writer.flush().await?;
 
         Ok(())
     }

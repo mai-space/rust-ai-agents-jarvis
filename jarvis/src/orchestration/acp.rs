@@ -35,19 +35,22 @@ pub struct AcpState {
 }
 
 pub async fn start_acp_server(manager: Arc<Manager>, port: u16) -> Result<()> {
+    let app = create_app(manager);
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+pub fn create_app(manager: Arc<Manager>) -> Router {
     let state = Arc::new(AcpState {
         manager,
         tasks: Mutex::new(HashMap::new()),
     });
 
-    let app = Router::new()
+    Router::new()
         .route("/agent/tasks", post(create_task))
         .route("/agent/tasks/:task_id/steps", post(execute_step))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    axum::serve(listener, app).await?;
-    Ok(())
+        .with_state(state)
 }
 
 async fn create_task(

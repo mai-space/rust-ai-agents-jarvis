@@ -21,6 +21,9 @@ dotenvy = "0.15"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+
 [package.metadata.dist]
 # The preferred cargo-dist version to use in CI (checked by 'cargo dist init')
 cargo-dist-version = "0.14.1"
