@@ -145,14 +145,19 @@ impl Tool for ApplyPatchTool {
 
     async fn run(&self, input: Value) -> Result<Value> {
         let patch_content = input["patch"].as_str().ok_or_else(|| anyhow::anyhow!("Patch content is required"))?;
+        let cwd = input["cwd"].as_str();
         
         use std::process::Command;
         use std::io::Write;
         
         // Try dry-run first
-        let mut dry_run_child = Command::new("patch")
-            .arg("-p1")
-            .arg("--dry-run")
+        let mut dry_run_cmd = Command::new("patch");
+        dry_run_cmd.arg("-p1").arg("--dry-run");
+        if let Some(c) = cwd {
+            dry_run_cmd.current_dir(c);
+        }
+        
+        let mut dry_run_child = dry_run_cmd
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -173,8 +178,13 @@ impl Tool for ApplyPatchTool {
             }));
         }
 
-        let mut child = Command::new("patch")
-            .arg("-p1")
+        let mut cmd = Command::new("patch");
+        cmd.arg("-p1");
+        if let Some(c) = cwd {
+            cmd.current_dir(c);
+        }
+
+        let mut child = cmd
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -295,6 +305,36 @@ mod tests {
         let src_entry = structure.iter().find(|e| e["name"] == "src").unwrap();
         assert_eq!(src_entry["type"], "directory");
         assert!(src_entry["contents"].is_array());
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_apply_patch() -> Result<()> {
+        let test_dir = setup_test_dir("test_apply_patch");
+        let file_path = test_dir.join("hello.txt");
+        fs::write(&file_path, "Hello World\n")?;
+
+        // Patch with -p1 expects a/filename and b/filename
+        // If we set cwd to test_dir, then -p1 will strip 'a' and look for 'filename' in test_dir
+        let patch = 
+"--- a/hello.txt
++++ b/hello.txt
+@@ -1 +1 @@
+-Hello World
++Hello Jarvis
+";
+
+        let tool = ApplyPatchTool;
+        let result = tool.run(json!({ 
+            "patch": patch,
+            "cwd": test_dir.to_str().unwrap()
+        })).await?;
+        
+        assert_eq!(result["status"], "success", "Patch failed: {}", result["stderr"]);
+        
+        let new_content = fs::read_to_string(&file_path)?;
+        assert_eq!(new_content, "Hello Jarvis\n");
         
         Ok(())
     }

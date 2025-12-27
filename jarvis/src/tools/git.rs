@@ -41,15 +41,22 @@ impl Tool for GitCommitTool {
 
     async fn run(&self, input: Value) -> Result<Value> {
         let message = input["message"].as_str().ok_or_else(|| anyhow::anyhow!("Message is required"))?;
+        let cwd = input["cwd"].as_str();
         
         // Add all changes
-        Command::new("git").arg("add").arg(".").output()?;
+        let mut add_cmd = Command::new("git");
+        add_cmd.arg("add").arg(".");
+        if let Some(c) = cwd {
+            add_cmd.current_dir(c);
+        }
+        add_cmd.output()?;
         
-        let output = Command::new("git")
-            .arg("commit")
-            .arg("-m")
-            .arg(message)
-            .output()?;
+        let mut commit_cmd = Command::new("git");
+        commit_cmd.arg("commit").arg("-m").arg(message);
+        if let Some(c) = cwd {
+            commit_cmd.current_dir(c);
+        }
+        let output = commit_cmd.output()?;
             
         if output.status.success() {
             Ok(json!({ "status": "success", "stdout": String::from_utf8_lossy(&output.stdout).to_string() }))
@@ -68,16 +75,19 @@ impl Tool for GitCheckoutTool {
     }
 
     fn description(&self) -> &str {
-        "Checkout a branch or file. Input: { \"target\": \"branch_or_file\" }"
+        "Checkout a branch or file. Input: { \"target\": \"branch_or_file\", \"cwd\": \"optional_path\" }"
     }
 
     async fn run(&self, input: Value) -> Result<Value> {
         let target = input["target"].as_str().ok_or_else(|| anyhow::anyhow!("Target is required"))?;
+        let cwd = input["cwd"].as_str();
         
-        let output = Command::new("git")
-            .arg("checkout")
-            .arg(target)
-            .output()?;
+        let mut cmd = Command::new("git");
+        cmd.arg("checkout").arg(target);
+        if let Some(c) = cwd {
+            cmd.current_dir(c);
+        }
+        let output = cmd.output()?;
             
         if output.status.success() {
             Ok(json!({ "status": "success", "stdout": String::from_utf8_lossy(&output.stdout).to_string() }))
@@ -121,34 +131,42 @@ mod tests {
     #[tokio::test]
     async fn test_git_commit_checkout() -> Result<()> {
         let test_dir = setup_test_git_repo("test_git_commit");
-        let original_dir = std::env::current_dir()?;
-        
-        // Change to test dir
-        std::env::set_current_dir(&test_dir)?;
+        let test_dir_str = test_dir.to_str().unwrap();
         
         fs::write(test_dir.join("test.txt"), "hello git")?;
         
         let commit_tool = GitCommitTool;
-        let result = commit_tool.run(json!({ "message": "initial commit" })).await?;
-        assert_eq!(result["status"], "success");
+        let result = commit_tool.run(json!({ 
+            "message": "initial commit",
+            "cwd": test_dir_str
+        })).await?;
+        assert_eq!(result["status"], "success", "Commit failed: {}", result["stderr"]);
         
         // Create a branch
         Command::new("git").arg("checkout").arg("-b").arg("feature").current_dir(&test_dir).output()?;
         fs::write(test_dir.join("feature.txt"), "new feature")?;
-        commit_tool.run(json!({ "message": "feature commit" })).await?;
+        commit_tool.run(json!({ 
+            "message": "feature commit",
+            "cwd": test_dir_str
+        })).await?;
         
         let checkout_tool = GitCheckoutTool;
-        let result = checkout_tool.run(json!({ "target": "master" })).await?;
+        let result = checkout_tool.run(json!({ 
+            "target": "master",
+            "cwd": test_dir_str
+        })).await?;
+        
         // Some systems use 'main' instead of 'master' by default now, let's check
         if result["status"] == "error" {
-             let result = checkout_tool.run(json!({ "target": "main" })).await?;
+             let result = checkout_tool.run(json!({ 
+                 "target": "main",
+                 "cwd": test_dir_str
+             })).await?;
              assert_eq!(result["status"], "success");
         } else {
              assert_eq!(result["status"], "success");
         }
         
-        // Switch back to original dir
-        std::env::set_current_dir(original_dir)?;
         Ok(())
     }
 }

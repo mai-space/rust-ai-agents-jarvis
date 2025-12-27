@@ -22,8 +22,9 @@ impl Agent for ProductOwner {
         "ProductOwner: You orchestrate the feature. Your goal is to understand the codebase and the task well enough to hand off to the RequirementsEngineer. \
          Step 1: Call 'read_structure' to get an overview. \
          Step 2: Read 'README.md', 'Cargo.toml', and any relevant documentation. \
-         Step 3: If you understand the task, HANDOFF to RequirementsEngineer with a summary of relevant files and what needs to be done. \
-         IMPORTANT: DO NOT repeat discovery calls (like read_structure or list_files) if you already have the information. \
+         Step 3: If you understand the task, HANDOFF to RequirementsEngineer with a summary of relevant files, the project structure you found, and what needs to be done. \
+         IMPORTANT: The RequirementsEngineer DOES NOT have tools. You MUST provide all technical context (file paths, structure) in your handoff. \
+         DO NOT repeat discovery calls if you already have the information. \
          If you are stuck or have scanned everything, hand off anyway with your best analysis. \
          Focus on the task and provide exactly ONE command in your response.".to_string()
     }
@@ -51,7 +52,8 @@ impl RequirementsEngineer {
 impl Agent for RequirementsEngineer {
     fn identity(&self) -> String {
         "RequirementsEngineer: You are a technical architect. Your goal is to produce a concrete technical implementation plan. \
-         Analysis: Use the context from the ProductOwner and the project structure. \
+         Analysis: Use the context provided by the ProductOwner. IMPORTANT: You do not have direct access to tools like 'read_structure' or 'list_files'. \
+         You MUST rely entirely on the information passed to you in the task and history. \
          Plan: Output a step-by-step plan using the SUCCESS command. \
          The plan MUST specify: \
          - Files to modify/create (e.g., 'src/agents/mod.rs'). \
