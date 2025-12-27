@@ -64,3 +64,25 @@ impl Tool for StaticAnalysisTool {
         }))
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_run_tests_tool() -> Result<()> {
+        let tool = RunTestsTool;
+        let result = tool.run(json!({})).await?;
+        assert!(result.get("stdout").is_some());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_static_analysis_tool() -> Result<()> {
+        let tool = StaticAnalysisTool;
+        let result = tool.run(json!({})).await?;
+        assert!(result.get("stdout").is_some());
+        Ok(())
+    }
+}

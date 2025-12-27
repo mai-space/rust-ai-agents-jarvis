@@ -84,6 +84,7 @@ async fn test_rag_logic() -> Result<()> {
         task: "TEST TASK".to_string(),
         history: Vec::new(),
         vector_db: Some(vector_db),
+        available_agents: vec!["SimpleAgent".to_string()],
     };
 
     // We can't easily check the prompt sent to LLM here without more mocking,

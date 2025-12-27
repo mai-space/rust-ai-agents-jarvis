@@ -86,3 +86,69 @@ impl Tool for GitCheckoutTool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn setup_test_git_repo(name: &str) -> PathBuf {
+        let mut path = std::env::current_dir().unwrap();
+        path.push("target");
+        path.push("test_git");
+        path.push(name);
+        if path.exists() {
+            let _ = fs::remove_dir_all(&path);
+        }
+        fs::create_dir_all(&path).unwrap();
+        
+        Command::new("git").arg("init").current_dir(&path).output().unwrap();
+        Command::new("git").arg("config").arg("user.email").arg("test@example.com").current_dir(&path).output().unwrap();
+        Command::new("git").arg("config").arg("user.name").arg("Test User").current_dir(&path).output().unwrap();
+        
+        path
+    }
+
+    #[tokio::test]
+    async fn test_read_diff() -> Result<()> {
+        let tool = ReadDiffTool;
+        let result = tool.run(json!({})).await?;
+        assert!(result.get("diff").is_some());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_git_commit_checkout() -> Result<()> {
+        let test_dir = setup_test_git_repo("test_git_commit");
+        let original_dir = std::env::current_dir()?;
+        
+        // Change to test dir
+        std::env::set_current_dir(&test_dir)?;
+        
+        fs::write(test_dir.join("test.txt"), "hello git")?;
+        
+        let commit_tool = GitCommitTool;
+        let result = commit_tool.run(json!({ "message": "initial commit" })).await?;
+        assert_eq!(result["status"], "success");
+        
+        // Create a branch
+        Command::new("git").arg("checkout").arg("-b").arg("feature").current_dir(&test_dir).output()?;
+        fs::write(test_dir.join("feature.txt"), "new feature")?;
+        commit_tool.run(json!({ "message": "feature commit" })).await?;
+        
+        let checkout_tool = GitCheckoutTool;
+        let result = checkout_tool.run(json!({ "target": "master" })).await?;
+        // Some systems use 'main' instead of 'master' by default now, let's check
+        if result["status"] == "error" {
+             let result = checkout_tool.run(json!({ "target": "main" })).await?;
+             assert_eq!(result["status"], "success");
+        } else {
+             assert_eq!(result["status"], "success");
+        }
+        
+        // Switch back to original dir
+        std::env::set_current_dir(original_dir)?;
+        Ok(())
+    }
+}

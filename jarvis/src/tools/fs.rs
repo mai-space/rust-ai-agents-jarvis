@@ -219,3 +219,109 @@ impl Tool for SearchCodebaseTool {
         Ok(json!({ "results": results }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn setup_test_dir(name: &str) -> PathBuf {
+        let mut path = std::env::current_dir().unwrap();
+        path.push("target");
+        path.push("test_data");
+        path.push(name);
+        if path.exists() {
+            let _ = fs::remove_dir_all(&path);
+        }
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn test_list_files() -> Result<()> {
+        let test_dir = setup_test_dir("test_list_files");
+        fs::write(test_dir.join("file1.txt"), "hello")?;
+        fs::write(test_dir.join("file2.txt"), "world")?;
+
+        let tool = ListFilesTool;
+        let result = tool.run(json!({ "path": test_dir.to_str().unwrap() })).await?;
+        
+        let files = result["files"].as_array().unwrap();
+        assert_eq!(files.len(), 2);
+        let mut file_names: Vec<_> = files.iter().map(|f| f.as_str().unwrap()).collect();
+        file_names.sort();
+        assert_eq!(file_names, vec!["file1.txt", "file2.txt"]);
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_write_file() -> Result<()> {
+        let test_dir = setup_test_dir("test_read_write");
+        let file_path = test_dir.join("test.txt");
+        let content = "Hello, Jarvis!";
+
+        let write_tool = WriteFileTool;
+        let write_res = write_tool.run(json!({
+            "path": file_path.to_str().unwrap(),
+            "content": content
+        })).await?;
+        assert_eq!(write_res["status"], "success");
+
+        let read_tool = ReadFileTool;
+        let read_res = read_tool.run(json!({
+            "path": file_path.to_str().unwrap()
+        })).await?;
+        assert_eq!(read_res["content"], content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_structure() -> Result<()> {
+        let test_dir = setup_test_dir("test_structure");
+        fs::create_dir(test_dir.join("src"))?;
+        fs::write(test_dir.join("src/main.rs"), "fn main() {}")?;
+        fs::write(test_dir.join("README.md"), "# Test")?;
+
+        let tool = ReadStructureTool;
+        let result = tool.run(json!({ "path": test_dir.to_str().unwrap() })).await?;
+        
+        let structure = result["structure"].as_array().unwrap();
+        // Should have src (directory) and README.md (file)
+        assert_eq!(structure.len(), 2);
+        
+        let src_entry = structure.iter().find(|e| e["name"] == "src").unwrap();
+        assert_eq!(src_entry["type"], "directory");
+        assert!(src_entry["contents"].is_array());
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_search_codebase() -> Result<()> {
+        use crate::providers::mock::MockLlm;
+        
+        struct MockDb;
+        #[async_trait]
+        impl VectorDbProvider for MockDb {
+            async fn store(&self, _id: &str, _v: Vec<f32>, _m: Value, _n: &str) -> Result<()> { Ok(()) }
+            async fn search(&self, _v: Vec<f32>, _l: usize, _n: &str) -> Result<Vec<Value>> {
+                Ok(vec![json!({ "path": "src/main.rs", "content": "fn main() {}" })])
+            }
+        }
+
+        let tool = SearchCodebaseTool {
+            llm: Arc::new(MockLlm),
+            vector_db: Arc::new(MockDb),
+        };
+
+        let result = tool.run(json!({ "query": "main function" })).await?;
+        let results = result["results"].as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["path"], "src/main.rs");
+
+        Ok(())
+    }
+}

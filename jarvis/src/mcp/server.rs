@@ -3,7 +3,7 @@ use crate::tools::Tool;
 use anyhow::{Result, anyhow};
 use serde_json::json;
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, AsyncRead, AsyncWrite};
 use tracing::error;
 
 pub struct McpServer {
@@ -16,9 +16,15 @@ impl McpServer {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let stdin = tokio::io::stdin();
-        let mut reader = BufReader::new(stdin);
-        let mut stdout = tokio::io::stdout();
+        self.run_on_io(tokio::io::stdin(), tokio::io::stdout()).await
+    }
+
+    pub async fn run_on_io<R, W>(&self, input: R, mut output: W) -> Result<()>
+    where
+        R: AsyncRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        let mut reader = BufReader::new(input);
         let mut line = String::new();
 
         loop {
@@ -37,8 +43,8 @@ impl McpServer {
 
             let response = self.handle_request(request).await?;
             let response_str = serde_json::to_string(&response)? + "\n";
-            stdout.write_all(response_str.as_bytes()).await?;
-            stdout.flush().await?;
+            output.write_all(response_str.as_bytes()).await?;
+            output.flush().await?;
         }
 
         Ok(())

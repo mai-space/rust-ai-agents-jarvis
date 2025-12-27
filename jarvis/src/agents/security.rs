@@ -19,7 +19,7 @@ impl SecurityExpert {
 #[async_trait]
 impl Agent for SecurityExpert {
     fn identity(&self) -> String {
-        "Security Expert: You scan for SQL injection, XSS, and weak dependencies. Ensure the code follows security best practices.".to_string()
+        "SecurityExpert: You scan for SQL injection, XSS, and weak dependencies. Ensure the code follows security best practices.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {

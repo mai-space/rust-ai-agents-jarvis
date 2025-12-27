@@ -66,12 +66,14 @@ impl Manager {
                         .map(|a| a.iter().map(|v| v.as_str().unwrap_or("").to_string()).collect())
                         .unwrap_or_default(),
                     vector_db: self.vector_db.clone(),
+                    available_agents: self.agents.keys().cloned().collect(),
                 }
             } else {
                 AgentContext {
                     task,
                     history: Vec::new(),
                     vector_db: self.vector_db.clone(),
+                    available_agents: self.agents.keys().cloned().collect(),
                 }
             }
         } else {
@@ -79,6 +81,7 @@ impl Manager {
                 task,
                 history: Vec::new(),
                 vector_db: self.vector_db.clone(),
+                available_agents: self.agents.keys().cloned().collect(),
             }
         };
 

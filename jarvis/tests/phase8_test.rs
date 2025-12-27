@@ -45,6 +45,7 @@ async fn test_dual_stream_rag() -> Result<()> {
         task: "Implement error handling".to_string(),
         history: Vec::new(),
         vector_db: Some(vector_db.clone()),
+        available_agents: vec!["Librarian".to_string()],
     };
 
     let lib = Librarian::new(llm.clone(), vec![]);

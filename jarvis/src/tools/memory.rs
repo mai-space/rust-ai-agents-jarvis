@@ -32,3 +32,41 @@ impl Tool for StorePreferenceTool {
         Ok(json!({ "status": "success", "id": id }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::mock::MockLlm;
+    use tokio::sync::Mutex;
+
+    struct MockDb {
+        stored: Arc<Mutex<Vec<Value>>>,
+    }
+
+    #[async_trait]
+    impl VectorDbProvider for MockDb {
+        async fn store(&self, _id: &str, _v: Vec<f32>, m: Value, _n: &str) -> Result<()> {
+            self.stored.lock().await.push(m);
+            Ok(())
+        }
+        async fn search(&self, _v: Vec<f32>, _l: usize, _n: &str) -> Result<Vec<Value>> { Ok(vec![]) }
+    }
+
+    #[tokio::test]
+    async fn test_store_preference() -> Result<()> {
+        let db = Arc::new(MockDb { stored: Arc::new(Mutex::new(vec![])) });
+        let tool = StorePreferenceTool {
+            llm: Arc::new(MockLlm),
+            vector_db: db.clone(),
+        };
+
+        let result = tool.run(json!({ "preference": "Use anyhow" })).await?;
+        assert_eq!(result["status"], "success");
+        
+        let stored = db.stored.lock().await;
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0]["preference"], "Use anyhow");
+
+        Ok(())
+    }
+}

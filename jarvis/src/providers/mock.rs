@@ -7,19 +7,19 @@ pub struct MockLlm;
 #[async_trait]
 impl LlmProvider for MockLlm {
     async fn generate(&self, prompt: &str) -> Result<String> {
-        if prompt.contains("Identity: Product Owner") {
+        if prompt.contains("Identity: ProductOwner") {
             Ok("HANDOFF RequirementsEngineer InitialPlanningComplete PO_Analyzed_Codebase".to_string())
-        } else if prompt.contains("Identity: Requirements Engineer") {
+        } else if prompt.contains("Identity: RequirementsEngineer") {
             Ok("HANDOFF SeniorDeveloper PlanGenerated 1.Implement_Login".to_string())
-        } else if prompt.contains("Identity: Senior Developer") {
+        } else if prompt.contains("Identity: SeniorDeveloper") {
             Ok("HANDOFF AccessibilityExpert ImplementationComplete Dev_Implemented_Login".to_string())
-        } else if prompt.contains("Identity: Accessibility Expert") {
+        } else if prompt.contains("Identity: AccessibilityExpert") {
             Ok("HANDOFF SEOExpert AccessibilityCheckPassed Accessibility_Verified".to_string())
-        } else if prompt.contains("Identity: SEO Expert") {
+        } else if prompt.contains("Identity: SEOExpert") {
             Ok("HANDOFF SecurityExpert SEOCheckPassed SEO_Verified".to_string())
-        } else if prompt.contains("Identity: QA Tester") {
+        } else if prompt.contains("Identity: QATester") {
             Ok("HANDOFF Librarian QAVerificationPassed QA_Verified".to_string())
-        } else if prompt.contains("Identity: Security Expert") {
+        } else if prompt.contains("Identity: SecurityExpert") {
             Ok("HANDOFF QATester SecurityCheckPassed Security_Verified".to_string())
         } else if prompt.contains("Identity: Librarian") {
             Ok("SUCCESS Task finalized by Librarian".to_string())

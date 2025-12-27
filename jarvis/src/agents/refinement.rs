@@ -19,7 +19,7 @@ impl AccessibilityExpert {
 #[async_trait]
 impl Agent for AccessibilityExpert {
     fn identity(&self) -> String {
-        "Accessibility Expert: Scan changed HTML/JSX. Check for ARIA labels, contrast, and semantic tags. Apply fixes if needed.".to_string()
+        "AccessibilityExpert: Scan changed HTML/JSX. Check for ARIA labels, contrast, and semantic tags. Apply fixes if needed.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
@@ -45,7 +45,7 @@ impl SEOExpert {
 #[async_trait]
 impl Agent for SEOExpert {
     fn identity(&self) -> String {
-        "SEO Expert: Ensure meta tags, SSR compatibility, and semantic headers are intact. Apply fixes if needed.".to_string()
+        "SEOExpert: Ensure meta tags, SSR compatibility, and semantic headers are intact. Apply fixes if needed.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {

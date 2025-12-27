@@ -18,6 +18,7 @@ pub struct AgentContext {
     pub task: String,
     pub history: Vec<String>,
     pub vector_db: Option<Arc<dyn VectorDbProvider>>,
+    pub available_agents: Vec<String>,
 }
 
 #[async_trait]
@@ -56,18 +57,21 @@ pub async fn run_llm_agent(
         .join("\n");
 
     let system_prompt = format!(
-        "Identity: {}\n\nAvailable Tools:\n{}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n\n\
+        "Identity: {}\n\nAvailable Tools:\n{}\n\nAvailable Agents for HANDOFF:\n- {}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n\n\
         Rules:\n\
         1. Provide a THOUGHT: line before your command to explain your reasoning.\n\
-        2. Provide the command on a NEW line.\n\
+        2. Provide the command on a NEW line after your thought.\n\
         3. Use ONLY valid filesystem paths for tool arguments (e.g., '.', 'src/main.rs', 'README.md').\n\
         4. ABSOLUTELY PROHIBITED: Do NOT use descriptive placeholders like '<path_to_file>' or '<actual path>' in commands. If you don't know the path, use 'list_files' or 'read_structure' to find it.\n\
-        5. Provide ONLY the THOUGHT and the command.\n\
-        6. DO NOT repeat the same tool call with the same arguments if you have already received the result in this session.\n\n\
+        5. Provide ONLY the THOUGHT and the command. Avoid conversational filler.\n\
+        6. DO NOT repeat the same tool call with the same arguments if you have already received the result in this session.\n\
+        7. DO NOT use markdown code blocks (```) for your commands. Provide them as plain text lines.\n\
+        8. You MUST provide exactly ONE command (CALL, HANDOFF, SUCCESS, or ERROR) in every turn.\n\
+        9. HANDOFF target MUST be one of the available agents listed above.\n\n\
         Example:\n\
         THOUGHT: I should list the files to see the project structure.\n\
         CALL list_files {{ \"path\": \".\" }}",
-        identity, tools_desc
+        identity, tools_desc, context.available_agents.join("\n- ")
     );
 
     let task_embeddings = if let Some(_) = &context.vector_db {
@@ -163,6 +167,9 @@ pub async fn run_llm_agent(
             let mut line = line.trim();
             if line.is_empty() { continue; }
 
+            // Strip markdown code blocks
+            if line.starts_with("```") { continue; }
+
             // Strip common prefixes that models might hallucinate or echo
             if line.starts_with("Assistant:") { line = line["Assistant:".len()..].trim(); }
             if line.starts_with("Assistant") { line = line["Assistant".len()..].trim(); }
@@ -173,6 +180,12 @@ pub async fn run_llm_agent(
             if line.starts_with("Thought:") { line = line["Thought:".len()..].trim(); }
             if line.starts_with("Agent Thought:") { line = line["Agent Thought:".len()..].trim(); }
             if line.starts_with("Agent:") { line = line["Agent:".len()..].trim(); }
+
+            // Strip bullets or markdown headers
+            if line.starts_with("* ") { line = line["* ".len()..].trim(); }
+            if line.starts_with("- ") { line = line["- ".len()..].trim(); }
+            if line.starts_with("> ") { line = line["> ".len()..].trim(); }
+            if line.starts_with("# ") { line = line["# ".len()..].trim(); }
 
             // Strip numbering like "1. " or "1) "
             if !line.is_empty() && line.chars().next().unwrap().is_ascii_digit() {
@@ -232,7 +245,7 @@ pub async fn run_llm_agent(
                         
                         let input_json = input.to_string();
                         if executed_tools.contains(&(tool_name.to_string(), input_json.clone())) {
-                            session_history.push(format!("System: Error: You already called '{}' with these exact arguments in this session. You must use the information you already received or try a different approach (e.g., read a specific file you found).", tool_name));
+                            session_history.push(format!("System: Information: You already called '{}' with these exact arguments in this session and have the result above. Do NOT repeat the call. Instead, use the information you gained to take the next step (e.g., read a specific file, or HANDOFF if you have enough info).", tool_name));
                             continue;
                         }
                         executed_tools.insert((tool_name.to_string(), input_json));
@@ -261,8 +274,13 @@ pub async fn run_llm_agent(
                     session_history.push("System: Invalid HANDOFF format. Use HANDOFF <target> <reason> <context>".to_string());
                     continue;
                 }
+                let target = parts[1];
+                if !context.available_agents.contains(&target.to_string()) {
+                    session_history.push(format!("System: Error: Agent '{}' not found. Available agents are: {}. Please use one of the available agents.", target, context.available_agents.join(", ")));
+                    continue;
+                }
                 return Ok(AgentOutput::Handoff {
-                    target: parts[1].to_string(),
+                    target: target.to_string(),
                     reason: parts[2].to_string(),
                     context: parts[3].to_string(),
                 });
@@ -431,6 +449,7 @@ mod tests {
             task: "test".to_string(),
             history: vec![],
             vector_db: None,
+            available_agents: vec!["test".to_string()],
         };
 
         // Test case 1: Assistant prefix and numbering
