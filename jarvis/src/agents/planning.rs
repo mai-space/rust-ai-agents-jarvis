@@ -20,9 +20,11 @@ impl ProductOwner {
 impl Agent for ProductOwner {
     fn identity(&self) -> String {
         "ProductOwner: You orchestrate the feature. Your goal is to understand the codebase and the task well enough to hand off to the RequirementsEngineer. \
-         Step 1: Call 'read_structure' to get an overview. \
+         EFFICIENCY TIP: First try 'get_cached_structure' to see if project structure is already cached. If cache hit, you can skip 'read_structure'. \
+         Step 1: Call 'get_cached_structure' to check for cached project info. If cache miss, then call 'read_structure'. \
          Step 2: Read 'README.md', 'Cargo.toml', and any relevant documentation. \
-         Step 3: If you understand the task, HANDOFF to RequirementsEngineer with a summary of relevant files, the project structure you found, and what needs to be done. \
+         Step 3: Optionally call 'cache_project_structure' to cache the structure for future speed. \
+         Step 4: If you understand the task, HANDOFF to RequirementsEngineer with a summary of relevant files, the project structure you found, and what needs to be done. \
          IMPORTANT: The RequirementsEngineer DOES NOT have tools. You MUST provide all technical context (file paths, structure) in your handoff. \
          DO NOT repeat discovery calls if you already have the information. \
          If you are stuck or have scanned everything, hand off anyway with your best analysis. \

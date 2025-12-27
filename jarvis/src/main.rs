@@ -12,6 +12,8 @@ use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool, ApplyPatchTo
 use jarvis::tools::shell::{RunTestsTool, StaticAnalysisTool};
 use jarvis::tools::git::{ReadDiffTool, GitCommitTool, GitCheckoutTool};
 use jarvis::tools::memory::StorePreferenceTool;
+use jarvis::tools::analysis::{AnalyzeDependenciesTool, FindCodeMarkersTool};
+use jarvis::tools::project_cache::{CacheProjectStructureTool, GetCachedProjectStructureTool};
 use jarvis::mcp::McpClient;
 use jarvis::tools::mcp::McpTool;
 use jarvis::providers::postgres::PostgresProvider;
@@ -223,6 +225,8 @@ async fn main() -> Result<()> {
         Arc::new(ListFilesTool),
         Arc::new(ReadFileTool),
         Arc::new(ReadStructureTool),
+        Arc::new(AnalyzeDependenciesTool),
+        Arc::new(FindCodeMarkersTool),
     ];
     po_tools.extend(mcp_tools.clone());
 
@@ -232,6 +236,8 @@ async fn main() -> Result<()> {
         Arc::new(ApplyPatchTool),
         Arc::new(GitCommitTool),
         Arc::new(GitCheckoutTool),
+        Arc::new(AnalyzeDependenciesTool),
+        Arc::new(FindCodeMarkersTool),
     ];
     dev_tools.extend(mcp_tools.clone());
 
@@ -240,7 +246,16 @@ async fn main() -> Result<()> {
             llm: llm.clone(),
             vector_db: pg_provider.clone(),
         });
+        let cache_tool = Arc::new(CacheProjectStructureTool {
+            pg_provider: pg_provider.clone(),
+        });
+        let get_cache_tool = Arc::new(GetCachedProjectStructureTool {
+            pg_provider: pg_provider.clone(),
+        });
+        
         po_tools.push(search_tool.clone());
+        po_tools.push(cache_tool);
+        po_tools.push(get_cache_tool);
         dev_tools.push(search_tool);
     }
 
@@ -305,6 +320,8 @@ async fn main() -> Result<()> {
             Arc::new(GitCheckoutTool),
             Arc::new(RunTestsTool),
             Arc::new(StaticAnalysisTool),
+            Arc::new(AnalyzeDependenciesTool),
+            Arc::new(FindCodeMarkersTool),
         ];
         if let Some(pg_provider) = &pg_provider_opt {
             all_tools.push(Arc::new(SearchCodebaseTool {
@@ -321,6 +338,9 @@ async fn main() -> Result<()> {
     } else if let Some(task) = args.task {
         let result = manager.run_with_session("ProductOwner", task, args.session_id).await?;
         println!("\n--- FINAL RESULT ---\n{}", result);
+        
+        // Print metrics summary
+        println!("\n{}", manager.get_metrics_summary());
     } else {
         println!("No task provided. Use --task \"your task\" or run 'jarvis setup' to configure.");
     }

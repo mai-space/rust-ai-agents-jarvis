@@ -3,6 +3,8 @@ pub mod shell;
 pub mod git;
 pub mod memory;
 pub mod mcp;
+pub mod analysis;
+pub mod project_cache;
 
 use anyhow::Result;
 use async_trait::async_trait;
