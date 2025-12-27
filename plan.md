@@ -83,3 +83,11 @@ To prevent agents from getting stuck in "correction loops" (e.g., QA finding the
 - [x] Implement autonomous tool-calling loop in agents.
 - [x] Connect all specialized agents to their respective 'real' tools.
 - [x] Verify tool-calling autonomous behavior with integration tests.
+
+### Phase 7: Long-Term Memory & Advanced Tooling
+- [ ] Integrate `VectorDbProvider` (Postgres) into `Manager` and `AgentContext`.
+- [ ] Implement RAG (Retrieval-Augmented Generation) logic in `run_llm_agent` to automatically pull relevant context from the vector database.
+- [ ] Add `GitCommitTool` and `GitCheckoutTool` for autonomous version control management.
+- [ ] Implement Global State persistence (saving `AgentContext` to Postgres) to allow resuming tasks after a restart.
+- [ ] Enhance `ApplyPatchTool` with better conflict resolution and error reporting.
+- [ ] Add a `SearchCodebaseTool` that uses embeddings to find relevant code snippets.
