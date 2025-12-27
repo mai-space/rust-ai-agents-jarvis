@@ -63,6 +63,7 @@ async fn test_dual_stream_rag() -> Result<()> {
         available_agents: vec!["Librarian".to_string()],
         project_metadata: None,
         handoff_count: std::collections::HashMap::new(),
+        context_files: vec![],
     };
 
     let lib = Librarian::new(llm.clone(), vec![]);

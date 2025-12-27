@@ -74,7 +74,7 @@ async fn test_persistence() -> Result<()> {
     manager.register_agent("SimpleAgent".to_string(), agent);
 
     // Run first time - should save state
-    manager.run_with_session("SimpleAgent", "START".to_string(), Some("session1".to_string())).await?;
+    manager.run_with_session("SimpleAgent", "START".to_string(), Some("session1".to_string()), vec![]).await?;
     
     let saved_state = persistence.load_state("session1").await?.expect("State should be saved");
     assert_eq!(saved_state["task"], "SUCCESS");
@@ -94,6 +94,7 @@ async fn test_rag_logic() -> Result<()> {
         available_agents: vec!["SimpleAgent".to_string()],
         project_metadata: None,
         handoff_count: std::collections::HashMap::new(),
+        context_files: vec![],
     };
 
     // We can't easily check the prompt sent to LLM here without more mocking,

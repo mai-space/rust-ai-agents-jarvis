@@ -1,6 +1,6 @@
 pub mod acp;
 
-use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::agents::{Agent, AgentContext, AgentOutput, ContextFile};
 use crate::providers::{VectorDbProvider, PersistenceProvider};
 use crate::project_context::ProjectContextManager;
 use crate::metrics::HandoffMetrics;
@@ -73,10 +73,10 @@ impl Manager {
     }
 
     pub async fn run(&self, initial_agent: &str, task: String) -> Result<String> {
-        self.run_with_session(initial_agent, task, None).await
+        self.run_with_session(initial_agent, task, None, Vec::new()).await
     }
 
-    pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>) -> Result<String> {
+    pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>, context_files: Vec<ContextFile>) -> Result<String> {
         let mut current_agent_name = initial_agent.to_string();
         
         // Initialize project context
@@ -101,6 +101,7 @@ impl Manager {
                     available_agents: self.agents.keys().cloned().collect(),
                     project_metadata: project_metadata.clone(),
                     handoff_count: HashMap::new(),
+                    context_files: context_files.clone(),
                 }
             } else {
                 AgentContext {
@@ -110,6 +111,7 @@ impl Manager {
                     available_agents: self.agents.keys().cloned().collect(),
                     project_metadata: project_metadata.clone(),
                     handoff_count: HashMap::new(),
+                    context_files: context_files.clone(),
                 }
             }
         } else {
@@ -120,6 +122,7 @@ impl Manager {
                 available_agents: self.agents.keys().cloned().collect(),
                 project_metadata: project_metadata.clone(),
                 handoff_count: HashMap::new(),
+                context_files: context_files,
             }
         };
 
