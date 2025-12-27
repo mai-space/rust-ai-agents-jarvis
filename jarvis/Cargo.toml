@@ -24,6 +24,8 @@ dotenvy = "0.15"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 patch = "0.7"
+sha2 = "0.10"
+walkdir = "2.5"
 # Pins for Rust 1.75.0 compatibility
 base64ct = "=1.6.0"
 home = "=0.5.9"
@@ -33,6 +35,7 @@ indexmap = "=2.0.0"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+tempfile = "3.24"
 
 [package.metadata.dist]
 # The preferred cargo-dist version to use in CI (checked by 'cargo dist init')

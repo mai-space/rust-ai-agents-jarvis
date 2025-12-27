@@ -50,6 +50,11 @@ mod tests {
             Ok(())
         }
         async fn search(&self, _v: Vec<f32>, _l: usize, _n: &str) -> Result<Vec<Value>> { Ok(vec![]) }
+        async fn store_with_project(&self, _id: &str, _v: Vec<f32>, m: Value, _n: &str, _p: &str) -> Result<()> {
+            self.stored.lock().await.push(m);
+            Ok(())
+        }
+        async fn search_with_project(&self, _v: Vec<f32>, _l: usize, _n: &str, _p: &str) -> Result<Vec<Value>> { Ok(vec![]) }
     }
 
     #[tokio::test]

@@ -12,6 +12,7 @@ use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool, ApplyPatchTo
 use jarvis::tools::shell::{RunTestsTool, StaticAnalysisTool};
 use jarvis::tools::git::{ReadDiffTool, GitCommitTool, GitCheckoutTool};
 use jarvis::tools::memory::StorePreferenceTool;
+use jarvis::tools::analysis::{AnalyzeDependenciesTool, FindCodeMarkersTool};
 use jarvis::mcp::McpClient;
 use jarvis::tools::mcp::McpTool;
 use jarvis::providers::postgres::PostgresProvider;
@@ -223,6 +224,8 @@ async fn main() -> Result<()> {
         Arc::new(ListFilesTool),
         Arc::new(ReadFileTool),
         Arc::new(ReadStructureTool),
+        Arc::new(AnalyzeDependenciesTool),
+        Arc::new(FindCodeMarkersTool),
     ];
     po_tools.extend(mcp_tools.clone());
 
@@ -232,6 +235,8 @@ async fn main() -> Result<()> {
         Arc::new(ApplyPatchTool),
         Arc::new(GitCommitTool),
         Arc::new(GitCheckoutTool),
+        Arc::new(AnalyzeDependenciesTool),
+        Arc::new(FindCodeMarkersTool),
     ];
     dev_tools.extend(mcp_tools.clone());
 
@@ -305,6 +310,8 @@ async fn main() -> Result<()> {
             Arc::new(GitCheckoutTool),
             Arc::new(RunTestsTool),
             Arc::new(StaticAnalysisTool),
+            Arc::new(AnalyzeDependenciesTool),
+            Arc::new(FindCodeMarkersTool),
         ];
         if let Some(pg_provider) = &pg_provider_opt {
             all_tools.push(Arc::new(SearchCodebaseTool {

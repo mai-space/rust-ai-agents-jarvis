@@ -2,6 +2,7 @@ pub mod acp;
 
 use crate::agents::{Agent, AgentContext, AgentOutput};
 use crate::providers::{VectorDbProvider, PersistenceProvider};
+use crate::project_context::ProjectContextManager;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,6 +58,16 @@ impl Manager {
     pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>) -> Result<String> {
         let mut current_agent_name = initial_agent.to_string();
         
+        // Initialize project context
+        let mut project_ctx_manager = ProjectContextManager::new();
+        let project_metadata = project_ctx_manager.init_from_cwd().ok().cloned();
+        
+        // Log project context
+        if let Some(ref meta) = project_metadata {
+            info!("Manager: Initialized project context: {}", meta.project_name);
+            info!("Manager: Project ID: {}", meta.project_id);
+        }
+        
         let mut context = if let (Some(persistence), Some(sid)) = (&self.persistence, &session_id) {
             if let Some(state) = persistence.load_state(sid).await? {
                 info!("Manager: Resuming session '{}'", sid);
@@ -67,6 +78,8 @@ impl Manager {
                         .unwrap_or_default(),
                     vector_db: self.vector_db.clone(),
                     available_agents: self.agents.keys().cloned().collect(),
+                    project_metadata: project_metadata.clone(),
+                    handoff_count: HashMap::new(),
                 }
             } else {
                 AgentContext {
@@ -74,6 +87,8 @@ impl Manager {
                     history: Vec::new(),
                     vector_db: self.vector_db.clone(),
                     available_agents: self.agents.keys().cloned().collect(),
+                    project_metadata: project_metadata.clone(),
+                    handoff_count: HashMap::new(),
                 }
             }
         } else {
@@ -82,10 +97,13 @@ impl Manager {
                 history: Vec::new(),
                 vector_db: self.vector_db.clone(),
                 available_agents: self.agents.keys().cloned().collect(),
+                project_metadata: project_metadata.clone(),
+                handoff_count: HashMap::new(),
             }
         };
 
         let mut retry_counts: HashMap<String, usize> = HashMap::new();
+        let mut agent_call_sequence: Vec<String> = Vec::new();
 
         loop {
             if let (Some(persistence), Some(sid)) = (&self.persistence, &session_id) {
@@ -97,6 +115,35 @@ impl Manager {
             }
 
             info!("Manager: Calling agent '{}'", current_agent_name);
+            
+            // Track agent call sequence for loop detection
+            agent_call_sequence.push(current_agent_name.clone());
+            
+            // Detect immediate loops (A -> B -> A -> B pattern)
+            if agent_call_sequence.len() >= 4 {
+                let len = agent_call_sequence.len();
+                let last_four = &agent_call_sequence[len-4..len];
+                if last_four[0] == last_four[2] && last_four[1] == last_four[3] {
+                    warn!("Manager: Detected immediate handoff loop: {} <-> {}", last_four[0], last_four[1]);
+                    if let Some(hitl) = &self.hitl {
+                        info!("Manager: Requesting human intervention to break the loop");
+                        let human_input = hitl.consult(&current_agent_name, "Loop detected between agents", &context.history)?;
+                        info!("Manager: Human intervention received. Continuing.");
+                        context.task = format!("{} (Human Instruction to break loop: {})", context.task, human_input);
+                        agent_call_sequence.clear(); // Reset sequence after intervention
+                    } else {
+                        error!("Manager: Loop detected but no Human-in-the-loop provider available.");
+                        return Err(anyhow::anyhow!("Agent handoff loop detected: {} <-> {}", last_four[0], last_four[1]));
+                    }
+                }
+            }
+            
+            // Prevent excessive total iterations
+            if agent_call_sequence.len() > 30 {
+                error!("Manager: Exceeded maximum total agent iterations (30)");
+                return Err(anyhow::anyhow!("Task exceeded maximum agent iterations"));
+            }
+            
             let agent = self.agents.get(&current_agent_name)
                 .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", current_agent_name))?;
 

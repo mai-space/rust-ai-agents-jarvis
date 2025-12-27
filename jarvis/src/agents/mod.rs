@@ -9,6 +9,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use crate::tools::Tool;
 use crate::providers::{LlmProvider, VectorDbProvider};
+use crate::project_context::ProjectMetadata;
 use std::sync::Arc;
 use serde_json::Value;
 use tracing::{info, debug, warn};
@@ -19,6 +20,8 @@ pub struct AgentContext {
     pub history: Vec<String>,
     pub vector_db: Option<Arc<dyn VectorDbProvider>>,
     pub available_agents: Vec<String>,
+    pub project_metadata: Option<ProjectMetadata>,
+    pub handoff_count: std::collections::HashMap<String, usize>,
 }
 
 #[async_trait]
@@ -67,7 +70,11 @@ pub async fn run_llm_agent(
         6. DO NOT repeat the same tool call with the same arguments if you have already received the result in this session.\n\
         7. DO NOT use markdown code blocks (```) for your commands. Provide them as plain text lines.\n\
         8. You MUST provide exactly ONE command (CALL, HANDOFF, SUCCESS, or ERROR) in every turn.\n\
-        9. HANDOFF target MUST be one of the available agents listed above.\n\n\
+        9. HANDOFF target MUST be one of the available agents listed above.\n\
+        10. CRITICAL: NEVER hand off to yourself. You cannot hand off to the same agent you are currently acting as.\n\
+        11. Focus on YOUR specific role and responsibilities. Do NOT try to do other agents' work.\n\
+        12. If you find yourself in a loop (doing the same thing repeatedly), HANDOFF or report SUCCESS/ERROR.\n\
+        13. Be decisive: After gathering sufficient information, take action or hand off. Don't overthink.\n\n\
         Example:\n\
         THOUGHT: I should list the files to see the project structure.\n\
         CALL list_files {{ \"path\": \".\" }}",
@@ -93,17 +100,29 @@ pub async fn run_llm_agent(
     loop {
         let mut full_prompt = system_prompt.clone();
 
+        // Add project context if available
+        if let Some(project_meta) = &context.project_metadata {
+            full_prompt.push_str("\n\n=== PROJECT CONTEXT ===\n");
+            full_prompt.push_str(&project_meta.get_summary());
+            full_prompt.push_str("======================\n");
+        }
+
         if let (Some(vector_db), Some(embeddings)) = (&context.vector_db, &task_embeddings) {
             let mut combined_results = Vec::new();
             
-            // 1. Project context
-            if let Ok(project_results) = vector_db.search(embeddings.clone(), 3, "project").await {
+            // Determine project_id for scoped search
+            let project_id = context.project_metadata.as_ref()
+                .map(|p| p.project_id.as_str())
+                .unwrap_or("global");
+            
+            // 1. Project context (project-scoped)
+            if let Ok(project_results) = vector_db.search_with_project(embeddings.clone(), 3, "project", project_id).await {
                 for res in project_results {
                     combined_results.push(("Project", res));
                 }
             }
             
-            // 2. User preferences
+            // 2. User preferences (global)
             if let Ok(user_results) = vector_db.search(embeddings.clone(), 3, "user").await {
                 for res in user_results {
                     combined_results.push(("User Preference", res));
@@ -276,10 +295,22 @@ pub async fn run_llm_agent(
                     continue;
                 }
                 let target = parts[1];
+                
+                // Prevent self-handoff
+                let current_agent_name = identity.split(':').next().unwrap_or(&identity);
+                if target == current_agent_name {
+                    session_history.push(format!("System: Error: You CANNOT hand off to yourself ({}). You must hand off to a DIFFERENT agent. Review your task and either complete it (SUCCESS) or hand off to an appropriate different agent.", target));
+                    continue;
+                }
+                
                 if !context.available_agents.contains(&target.to_string()) {
                     session_history.push(format!("System: Error: Agent '{}' not found. Available agents are: {}. Please use one of the available agents.", target, context.available_agents.join(", ")));
                     continue;
                 }
+                
+                // Track handoff patterns to detect loops
+                *context.handoff_count.entry(target.to_string()).or_insert(0) += 1;
+                
                 return Ok(AgentOutput::Handoff {
                     target: target.to_string(),
                     reason: parts[2].to_string(),
@@ -390,6 +421,7 @@ fn sanitize_model_response(response: &str) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::collections::HashMap;
 
     #[test]
     fn test_summarize_input() {
@@ -452,6 +484,8 @@ mod tests {
             history: vec![],
             vector_db: None,
             available_agents: vec!["test".to_string()],
+            project_metadata: None,
+            handoff_count: HashMap::new(),
         };
 
         // Test case 1: Assistant prefix and numbering

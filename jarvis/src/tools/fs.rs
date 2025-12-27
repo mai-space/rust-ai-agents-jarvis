@@ -542,6 +542,10 @@ mod tests {
             async fn search(&self, _v: Vec<f32>, _l: usize, _n: &str) -> Result<Vec<Value>> {
                 Ok(vec![json!({ "path": "src/main.rs", "content": "fn main() {}" })])
             }
+            async fn store_with_project(&self, _id: &str, _v: Vec<f32>, _m: Value, _n: &str, _p: &str) -> Result<()> { Ok(()) }
+            async fn search_with_project(&self, _v: Vec<f32>, _l: usize, _n: &str, _p: &str) -> Result<Vec<Value>> {
+                Ok(vec![json!({ "path": "src/main.rs", "content": "fn main() {}" })])
+            }
         }
 
         let tool = SearchCodebaseTool {
