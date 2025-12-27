@@ -19,7 +19,9 @@ impl Librarian {
 #[async_trait]
 impl Agent for Librarian {
     fn identity(&self) -> String {
-        "Librarian: You finalize the task. Your job is to update documentation, KDocs, and ensure the task is complete and well-documented.".to_string()
+        "Librarian: You finalize the task. Your job is to update documentation, and ensure the task is complete and well-documented. \
+         You are also responsible for identifying and storing user preferences and style choices observed during the session using the store_preference tool. \
+         Look for patterns in how the user wants things done (e.g., specific libraries, coding styles, or preferred ways of explaining things).".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {

@@ -11,6 +11,9 @@ use jarvis::agents::refinement::{AccessibilityExpert, SEOExpert};
 use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool, ApplyPatchTool, ReadStructureTool, SearchCodebaseTool};
 use jarvis::tools::shell::{RunTestsTool, StaticAnalysisTool};
 use jarvis::tools::git::{ReadDiffTool, GitCommitTool, GitCheckoutTool};
+use jarvis::tools::memory::StorePreferenceTool;
+use jarvis::mcp::McpClient;
+use jarvis::tools::mcp::McpTool;
 use jarvis::providers::postgres::PostgresProvider;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -58,6 +61,54 @@ struct Args {
 
     #[arg(long)]
     session_id: Option<String>,
+
+    #[arg(long)]
+    mcp_config: Option<String>,
+
+    #[arg(long)]
+    serve_acp: bool,
+
+    #[arg(long, default_value_t = 8000)]
+    acp_port: u16,
+
+    #[arg(long)]
+    serve_mcp: bool,
+}
+
+async fn load_mcp_tools(config_path: &str) -> Result<Vec<Arc<dyn jarvis::tools::Tool>>> {
+    let content = std::fs::read_to_string(config_path)?;
+    let config: serde_json::Value = serde_json::from_str(&content)?;
+    let mut tools = Vec::new();
+
+    if let Some(servers) = config["mcpServers"].as_object() {
+        for (name, server_config) in servers {
+            let command = server_config["command"].as_str().ok_or_else(|| anyhow::anyhow!("Missing command for MCP server {}", name))?;
+            let args_val = server_config["args"].as_array();
+            let mut args = Vec::new();
+            if let Some(a) = args_val {
+                for arg in a {
+                    if let Some(s) = arg.as_str() {
+                        args.push(s);
+                    }
+                }
+            }
+
+            info!("Spawning MCP server: {} ({} {:?})", name, command, args);
+            let client = Arc::new(tokio::sync::Mutex::new(McpClient::spawn(command, &args).await?));
+            
+            let mut client_lock = client.lock().await;
+            let mcp_tools = client_lock.list_tools().await?;
+            for t in mcp_tools {
+                tools.push(Arc::new(McpTool {
+                    name: t.name,
+                    description: t.description,
+                    client: client.clone(),
+                }) as Arc<dyn jarvis::tools::Tool>);
+            }
+        }
+    }
+
+    Ok(tools)
 }
 
 #[tokio::main]
@@ -87,11 +138,18 @@ async fn main() -> Result<()> {
         pg_provider_opt = Some(pg_provider);
     }
 
+    let mut mcp_tools = Vec::new();
+    if let Some(config_path) = args.mcp_config {
+        mcp_tools = load_mcp_tools(&config_path).await?;
+        info!("Loaded {} tools from MCP servers", mcp_tools.len());
+    }
+
     let mut po_tools: Vec<Arc<dyn jarvis::tools::Tool>> = vec![
         Arc::new(ListFilesTool),
         Arc::new(ReadFileTool),
         Arc::new(ReadStructureTool),
     ];
+    po_tools.extend(mcp_tools.clone());
 
     let mut dev_tools: Vec<Arc<dyn jarvis::tools::Tool>> = vec![
         Arc::new(WriteFileTool),
@@ -100,11 +158,12 @@ async fn main() -> Result<()> {
         Arc::new(GitCommitTool),
         Arc::new(GitCheckoutTool),
     ];
+    dev_tools.extend(mcp_tools.clone());
 
-    if let Some(pg_provider) = pg_provider_opt {
+    if let Some(pg_provider) = &pg_provider_opt {
         let search_tool = Arc::new(SearchCodebaseTool {
             llm: llm.clone(),
-            vector_db: pg_provider,
+            vector_db: pg_provider.clone(),
         });
         po_tools.push(search_tool.clone());
         dev_tools.push(search_tool);
@@ -133,10 +192,19 @@ async fn main() -> Result<()> {
     ];
     let security = Arc::new(SecurityExpert::new(llm.clone(), security_tools));
 
-    let lib_tools = vec![
+    let mut lib_tools = vec![
         Arc::new(WriteFileTool) as Arc<dyn jarvis::tools::Tool>,
         Arc::new(ReadFileTool) as Arc<dyn jarvis::tools::Tool>,
     ];
+    lib_tools.extend(mcp_tools);
+
+    if let Some(pg_provider) = &pg_provider_opt {
+        lib_tools.push(Arc::new(StorePreferenceTool {
+            llm: llm.clone(),
+            vector_db: pg_provider.clone(),
+        }));
+    }
+
     let librarian = Arc::new(Librarian::new(llm.clone(), lib_tools));
 
     manager.register_agent("ProductOwner".to_string(), po);
@@ -148,9 +216,37 @@ async fn main() -> Result<()> {
     manager.register_agent("QATester".to_string(), qa);
     manager.register_agent("Librarian".to_string(), librarian);
 
-    let result = manager.run_with_session("ProductOwner", args.task, args.session_id).await?;
+    let manager = Arc::new(manager);
 
-    println!("\n--- FINAL RESULT ---\n{}", result);
+    if args.serve_mcp {
+        // Collect unique tools to expose via MCP
+        let mut all_tools: Vec<Arc<dyn jarvis::tools::Tool>> = vec![
+            Arc::new(ListFilesTool),
+            Arc::new(ReadFileTool),
+            Arc::new(WriteFileTool),
+            Arc::new(ApplyPatchTool),
+            Arc::new(ReadStructureTool),
+            Arc::new(GitCommitTool),
+            Arc::new(GitCheckoutTool),
+            Arc::new(RunTestsTool),
+            Arc::new(StaticAnalysisTool),
+        ];
+        if let Some(pg_provider) = &pg_provider_opt {
+            all_tools.push(Arc::new(SearchCodebaseTool {
+                llm: llm.clone(),
+                vector_db: pg_provider.clone(),
+            }));
+        }
+        
+        let server = jarvis::mcp::McpServer::new(all_tools);
+        server.run().await?;
+    } else if args.serve_acp {
+        info!("Starting ACP server on port {}...", args.acp_port);
+        jarvis::orchestration::acp::start_acp_server(manager, args.acp_port).await?;
+    } else {
+        let result = manager.run_with_session("ProductOwner", args.task, args.session_id).await?;
+        println!("\n--- FINAL RESULT ---\n{}", result);
+    }
 
     Ok(())
 }

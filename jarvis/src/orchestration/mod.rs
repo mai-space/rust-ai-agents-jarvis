@@ -1,3 +1,5 @@
+pub mod acp;
+
 use crate::agents::{Agent, AgentContext, AgentOutput};
 use crate::providers::{VectorDbProvider, PersistenceProvider};
 use anyhow::Result;

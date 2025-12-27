@@ -3,3 +3,7 @@ members = [
     "jarvis",
 ]
 resolver = "2"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"

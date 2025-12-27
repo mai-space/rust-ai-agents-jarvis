@@ -214,7 +214,7 @@ impl Tool for SearchCodebaseTool {
         let query = input["query"].as_str().ok_or_else(|| anyhow::anyhow!("Query is required"))?;
         
         let embeddings = self.llm.get_embeddings(query).await?;
-        let results = self.vector_db.search(embeddings, 5).await?;
+        let results = self.vector_db.search(embeddings, 5, "project").await?;
         
         Ok(json!({ "results": results }))
     }

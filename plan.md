@@ -115,13 +115,20 @@ Jarvis is designed to be a native tool across all major operating systems.
 - [x] Add a `SearchCodebaseTool` that uses embeddings to find relevant code snippets.
 
 ### Phase 8: Personalized Memory & Context Awareness
-- [ ] Update Vector DB schema to support memory namespaces (User vs. Project).
-- [ ] Implement user preference extraction logic in agents.
-- [ ] Enhance RAG to perform dual-stream retrieval (Project context + User preferences).
-- [ ] Add `StorePreferenceTool` for explicit preference saving.
+- [x] Update Vector DB schema to support memory namespaces (User vs. Project).
+- [x] Implement user preference extraction logic in agents.
+- [x] Enhance RAG to perform dual-stream retrieval (Project context + User preferences).
+- [x] Add `StorePreferenceTool` for explicit preference saving.
 
 ### Phase 9: Distribution & Cross-Platform Support
-- [ ] Configure GitHub Actions matrix for Windows, Linux, and macOS.
-- [ ] Create installation scripts for `pgvector` and `Ollama` across all platforms.
-- [ ] Implement `cargo-dist` for automated binary releases.
-- [ ] Documentation for platform-specific edge cases.
+- [x] Configure GitHub Actions matrix for Windows, Linux, and macOS.
+- [x] Create installation scripts for `pgvector` and `Ollama` across all platforms.
+- [x] Implement `cargo-dist` for automated binary releases.
+- [x] Documentation for platform-specific edge cases.
+
+### Phase 10: Extensibility & IDE Integration
+- [x] Implement MCP (Model Context Protocol) Client support to use external tools.
+- [x] Implement ACP (Agent Client Protocol) Support for JetBrains IDE integration.
+- [x] Add dynamic tool registration via MCP configuration files.
+- [x] Create a bridge to expose Jarvis agents via MCP/ACP servers.
+- [x] Verify IDE integration with a sample JetBrains plugin or connection.

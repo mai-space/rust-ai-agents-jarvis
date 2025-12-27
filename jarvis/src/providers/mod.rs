@@ -13,8 +13,8 @@ pub trait LlmProvider: Send + Sync {
 
 #[async_trait]
 pub trait VectorDbProvider: Send + Sync {
-    async fn store(&self, id: &str, vector: Vec<f32>, metadata: serde_json::Value) -> Result<()>;
-    async fn search(&self, vector: Vec<f32>, limit: usize) -> Result<Vec<serde_json::Value>>;
+    async fn store(&self, id: &str, vector: Vec<f32>, metadata: serde_json::Value, namespace: &str) -> Result<()>;
+    async fn search(&self, vector: Vec<f32>, limit: usize, namespace: &str) -> Result<Vec<serde_json::Value>>;
 }
 
 #[async_trait]

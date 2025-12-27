@@ -15,11 +15,11 @@ struct MockVectorDb {
 
 #[async_trait]
 impl VectorDbProvider for MockVectorDb {
-    async fn store(&self, _id: &str, _vector: Vec<f32>, metadata: Value) -> Result<()> {
+    async fn store(&self, _id: &str, _vector: Vec<f32>, metadata: Value, _namespace: &str) -> Result<()> {
         self.data.lock().await.push(metadata);
         Ok(())
     }
-    async fn search(&self, _vector: Vec<f32>, _limit: usize) -> Result<Vec<Value>> {
+    async fn search(&self, _vector: Vec<f32>, _limit: usize, _namespace: &str) -> Result<Vec<Value>> {
         Ok(self.data.lock().await.clone())
     }
 }

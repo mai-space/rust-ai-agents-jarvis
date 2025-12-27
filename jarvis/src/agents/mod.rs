@@ -59,12 +59,26 @@ pub async fn run_llm_agent(
 
         if let Some(vector_db) = &context.vector_db {
             if let Ok(embeddings) = llm.get_embeddings(&context.task).await {
-                if let Ok(results) = vector_db.search(embeddings, 3).await {
-                    if !results.is_empty() {
-                        full_prompt.push_str("\n\nRelevant Context from Vector Database:\n");
-                        for (i, res) in results.iter().enumerate() {
-                            full_prompt.push_str(&format!("{}. {}\n", i + 1, res));
-                        }
+                let mut combined_results = Vec::new();
+                
+                // 1. Project context
+                if let Ok(project_results) = vector_db.search(embeddings.clone(), 3, "project").await {
+                    for res in project_results {
+                        combined_results.push(("Project", res));
+                    }
+                }
+                
+                // 2. User preferences
+                if let Ok(user_results) = vector_db.search(embeddings, 3, "user").await {
+                    for res in user_results {
+                        combined_results.push(("User Preference", res));
+                    }
+                }
+
+                if !combined_results.is_empty() {
+                    full_prompt.push_str("\n\nRelevant Context from Vector Database:\n");
+                    for (i, (source, res)) in combined_results.iter().enumerate() {
+                        full_prompt.push_str(&format!("{}. [{}] {}\n", i + 1, source, res));
                     }
                 }
             }

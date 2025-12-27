@@ -1,6 +1,8 @@
 pub mod fs;
 pub mod shell;
 pub mod git;
+pub mod memory;
+pub mod mcp;
 
 use anyhow::Result;
 use async_trait::async_trait;

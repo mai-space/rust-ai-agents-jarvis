@@ -20,6 +20,26 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
 
 ## 📥 Installation & Setup
 
+We provide installation scripts to help you set up dependencies like Ollama and PostgreSQL with `pgvector` on various platforms.
+
+### Linux
+```bash
+chmod +x scripts/install_linux.sh
+./scripts/install_linux.sh
+```
+
+### macOS
+```bash
+chmod +x scripts/install_macos.sh
+./scripts/install_macos.sh
+```
+
+### Windows
+```powershell
+.\scripts\install_windows.ps1
+```
+
+### Manual Configuration
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/your-repo/jarvis.git
@@ -36,6 +56,12 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
    ```bash
    cargo build
    ```
+
+## 🖥 Platform Support & Edge Cases
+
+- **Linux:** Native support for Ubuntu/Debian. Other distributions may require manual installation of `pgvector` from source.
+- **macOS:** Fully supported via Homebrew. Works on both Intel and Apple Silicon (M1/M2/M3).
+- **Windows:** Best experienced using Docker for the database. Native `pgvector` build on Windows can be complex; the `ankane/pgvector` Docker image is the recommended path.
 
 ## 📖 Tutorial: Running Your First Task
 
