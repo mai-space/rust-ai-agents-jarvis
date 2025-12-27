@@ -136,12 +136,21 @@ pub struct ApplyPatchTool;
 // Helper function to apply a unified diff patch in a cross-platform way
 fn apply_unified_patch(patch_content: &str, base_dir: &Path) -> Result<Vec<String>> {
     // Try to parse as multiple patches first, fall back to single if that fails
-    let patches = patch::Patch::from_multiple(patch_content)
-        .or_else(|_| {
-            patch::Patch::from_single(patch_content)
-                .map(|p| vec![p])
-        })
-        .map_err(|e| anyhow::anyhow!("Failed to parse patch: {}", e))?;
+    let patches = match patch::Patch::from_multiple(patch_content) {
+        Ok(patches) => patches,
+        Err(multi_err) => {
+            // If multi-patch parsing fails, try single patch
+            match patch::Patch::from_single(patch_content) {
+                Ok(single) => vec![single],
+                Err(single_err) => {
+                    return Err(anyhow::anyhow!(
+                        "Failed to parse patch. Multi-patch error: {}, Single-patch error: {}",
+                        multi_err, single_err
+                    ));
+                }
+            }
+        }
+    };
     
     let mut applied_files = Vec::new();
     
@@ -201,8 +210,15 @@ fn apply_unified_patch(patch_content: &str, base_dir: &Path) -> Result<Vec<Strin
             
             // Apply each hunk
             for hunk in &parsed_patch.hunks {
-                let old_start = hunk.old_range.start.saturating_sub(1) as usize;
-                let old_count = hunk.old_range.count as usize;
+                // Validate hunk start position
+                if hunk.old_range.start == 0 {
+                    return Err(anyhow::anyhow!(
+                        "Invalid hunk in file {}: start position cannot be 0",
+                        file_path.display()
+                    ));
+                }
+                
+                let old_start = (hunk.old_range.start - 1) as usize;
                 
                 // Collect new lines from the hunk
                 let mut new_lines: Vec<&str> = Vec::new();
@@ -223,6 +239,16 @@ fn apply_unified_patch(patch_content: &str, base_dir: &Path) -> Result<Vec<Strin
                     }
                 }
                 
+                // Verify we have enough lines in the file
+                if old_start + expected_old_lines.len() > lines.len() {
+                    return Err(anyhow::anyhow!(
+                        "Patch conflict in file {}: hunk at line {} extends beyond file end (file has {} lines)",
+                        file_path.display(),
+                        old_start + 1,
+                        lines.len()
+                    ));
+                }
+                
                 // Verify the old lines match (basic conflict detection)
                 let actual_old_lines: Vec<&str> = lines.iter()
                     .skip(old_start)
@@ -238,8 +264,8 @@ fn apply_unified_patch(patch_content: &str, base_dir: &Path) -> Result<Vec<Strin
                     ));
                 }
                 
-                // Apply the change
-                lines.splice(old_start..old_start + old_count, new_lines.iter().copied());
+                // Apply the change using the number of expected old lines for consistency
+                lines.splice(old_start..old_start + expected_old_lines.len(), new_lines.iter().copied());
             }
             
             // Write the modified content back
