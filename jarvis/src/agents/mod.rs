@@ -25,6 +25,7 @@ pub trait Agent: Send + Sync {
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput>;
 }
 
+#[derive(Debug)]
 pub enum AgentOutput {
     Success(String),
     Handoff {
@@ -50,7 +51,7 @@ pub async fn run_llm_agent(
         .join("\n");
 
     let system_prompt = format!(
-        "Identity: {}\n\nAvailable Tools:\n{}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n\nAlways use one of these commands. Provide only the command in your response.",
+        "Identity: {}\n\nAvailable Tools:\n{}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n\nExample:\nCALL list_files {{ \"path\": \".\" }}\n\nAlways use one of these commands. Provide ONLY the command line in your response.",
         identity, tools_desc
     );
 
@@ -91,55 +92,70 @@ pub async fn run_llm_agent(
         let response = llm.generate(&full_prompt).await?;
         session_history.push(format!("Assistant: {}", response));
 
-        if response.starts_with("CALL") {
-            let parts: Vec<&str> = response.splitn(3, ' ').collect();
-            if parts.len() < 3 {
-                session_history.push("System: Invalid CALL format. Use CALL <tool_name> <json_input>".to_string());
-                continue;
-            }
-            let tool_name = parts[1];
-            let tool_input_str = parts[2];
-            
-            let tool = capabilities.iter().find(|t| t.name() == tool_name);
-            match tool {
-                Some(t) => {
-                    let input: Value = match serde_json::from_str(tool_input_str) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            session_history.push(format!("System: Error parsing JSON input: {}", e));
-                            continue;
-                        }
-                    };
-                    match t.run(input).await {
-                        Ok(res) => session_history.push(format!("System: Tool '{}' result: {}", tool_name, res)),
-                        Err(e) => session_history.push(format!("System: Tool '{}' error: {}", tool_name, e)),
-                    }
-                }
-                None => session_history.push(format!("System: Tool '{}' not found", tool_name)),
-            }
-        } else if response.starts_with("HANDOFF") {
-            let parts: Vec<&str> = response.splitn(4, ' ').collect();
-            if parts.len() < 4 {
-                session_history.push("System: Invalid HANDOFF format. Use HANDOFF <target> <reason> <context>".to_string());
-                continue;
-            }
-            return Ok(AgentOutput::Handoff {
-                target: parts[1].to_string(),
-                reason: parts[2].to_string(),
-                context: parts[3].to_string(),
+        let trimmed_response = response.trim();
+        let cmd_line = trimmed_response.lines()
+            .map(|l| l.trim())
+            .find_map(|l| {
+                if let Some(idx) = l.find("CALL ") { Some(l[idx..].to_string()) }
+                else if let Some(idx) = l.find("HANDOFF ") { Some(l[idx..].to_string()) }
+                else if let Some(idx) = l.find("SUCCESS ") { Some(l[idx..].to_string()) }
+                else if let Some(idx) = l.find("ERROR ") { Some(l[idx..].to_string()) }
+                else if l.contains("SUCCESS") && l.len() <= 10 { Some("SUCCESS".to_string()) }
+                else if l.contains("ERROR") && l.len() <= 10 { Some("ERROR".to_string()) }
+                else { None }
             });
-        } else if response.starts_with("SUCCESS") {
-            let result = response.strip_prefix("SUCCESS ").unwrap_or(&response);
-            return Ok(AgentOutput::Success(result.to_string()));
-        } else if response.starts_with("ERROR") {
-            let err = response.strip_prefix("ERROR ").unwrap_or(&response);
-            return Ok(AgentOutput::Error(err.to_string()));
+
+        if let Some(line) = cmd_line {
+            if line.starts_with("CALL") {
+                let parts: Vec<&str> = line.splitn(3, ' ').collect();
+                if parts.len() < 3 {
+                    session_history.push("System: Invalid CALL format. Use CALL <tool_name> <json_input>".to_string());
+                    continue;
+                }
+                let tool_name = parts[1];
+                let tool_input_str = parts[2];
+                
+                let tool = capabilities.iter().find(|t| t.name() == tool_name);
+                match tool {
+                    Some(t) => {
+                        let input: Value = match serde_json::from_str(tool_input_str) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                session_history.push(format!("System: Error parsing JSON input: {}", e));
+                                continue;
+                            }
+                        };
+                        match t.run(input).await {
+                            Ok(res) => session_history.push(format!("System: Tool '{}' result: {}", tool_name, res)),
+                            Err(e) => session_history.push(format!("System: Tool '{}' error: {}", tool_name, e)),
+                        }
+                    }
+                    None => session_history.push(format!("System: Tool '{}' not found", tool_name)),
+                }
+            } else if line.starts_with("HANDOFF") {
+                let parts: Vec<&str> = line.splitn(4, ' ').collect();
+                if parts.len() < 4 {
+                    session_history.push("System: Invalid HANDOFF format. Use HANDOFF <target> <reason> <context>".to_string());
+                    continue;
+                }
+                return Ok(AgentOutput::Handoff {
+                    target: parts[1].to_string(),
+                    reason: parts[2].to_string(),
+                    context: parts[3].to_string(),
+                });
+            } else if line.starts_with("SUCCESS") {
+                let result = line.strip_prefix("SUCCESS ").unwrap_or(&line);
+                return Ok(AgentOutput::Success(result.to_string()));
+            } else if line.starts_with("ERROR") {
+                let err = line.strip_prefix("ERROR ").unwrap_or(&line);
+                return Ok(AgentOutput::Error(err.to_string()));
+            }
         } else {
             session_history.push("System: Unknown command format. Please use CALL, HANDOFF, SUCCESS, or ERROR.".to_string());
         }
 
         // Prevent infinite loops in one agent process
-        if session_history.len() > 20 {
+        if session_history.len() > 100 {
             return Ok(AgentOutput::Error("Agent exceeded maximum interaction steps".to_string()));
         }
     }
