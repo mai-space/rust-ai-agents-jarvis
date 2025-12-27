@@ -16,3 +16,9 @@ pub trait VectorDbProvider: Send + Sync {
     async fn store(&self, id: &str, vector: Vec<f32>, metadata: serde_json::Value) -> Result<()>;
     async fn search(&self, vector: Vec<f32>, limit: usize) -> Result<Vec<serde_json::Value>>;
 }
+
+#[async_trait]
+pub trait PersistenceProvider: Send + Sync {
+    async fn save_state(&self, session_id: &str, state: serde_json::Value) -> Result<()>;
+    async fn load_state(&self, session_id: &str) -> Result<Option<serde_json::Value>>;
+}

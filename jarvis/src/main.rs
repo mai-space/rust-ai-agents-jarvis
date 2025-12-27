@@ -8,9 +8,11 @@ use jarvis::agents::validation::QATester;
 use jarvis::agents::security::SecurityExpert;
 use jarvis::agents::documentation::Librarian;
 use jarvis::agents::refinement::{AccessibilityExpert, SEOExpert};
-use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool, ApplyPatchTool, ReadStructureTool};
+use jarvis::tools::fs::{ListFilesTool, ReadFileTool, WriteFileTool, ApplyPatchTool, ReadStructureTool, SearchCodebaseTool};
 use jarvis::tools::shell::{RunTestsTool, StaticAnalysisTool};
-use jarvis::tools::git::ReadDiffTool;
+use jarvis::tools::git::{ReadDiffTool, GitCommitTool, GitCheckoutTool};
+use jarvis::providers::postgres::PostgresProvider;
+use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::io::{self, Write};
 use clap::Parser;
@@ -50,6 +52,12 @@ struct Args {
 
     #[arg(long, default_value = "llama3")]
     model: String,
+
+    #[arg(long, env = "DATABASE_URL")]
+    database_url: Option<String>,
+
+    #[arg(long)]
+    session_id: Option<String>,
 }
 
 #[tokio::main]
@@ -65,20 +73,46 @@ async fn main() -> Result<()> {
     
     let mut manager = Manager::new(3).with_hitl(Arc::new(CliHitl));
 
-    let po_tools = vec![
-        Arc::new(ListFilesTool) as Arc<dyn jarvis::tools::Tool>,
-        Arc::new(ReadFileTool) as Arc<dyn jarvis::tools::Tool>,
-        Arc::new(ReadStructureTool) as Arc<dyn jarvis::tools::Tool>,
+    let mut pg_provider_opt = None;
+    if let Some(db_url) = args.database_url {
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&db_url).await?;
+        
+        let pg_provider = Arc::new(PostgresProvider::new(pool));
+        pg_provider.setup().await?;
+        
+        manager = manager.with_vector_db(pg_provider.clone());
+        manager = manager.with_persistence(pg_provider.clone());
+        pg_provider_opt = Some(pg_provider);
+    }
+
+    let mut po_tools: Vec<Arc<dyn jarvis::tools::Tool>> = vec![
+        Arc::new(ListFilesTool),
+        Arc::new(ReadFileTool),
+        Arc::new(ReadStructureTool),
     ];
+
+    let mut dev_tools: Vec<Arc<dyn jarvis::tools::Tool>> = vec![
+        Arc::new(WriteFileTool),
+        Arc::new(ReadFileTool),
+        Arc::new(ApplyPatchTool),
+        Arc::new(GitCommitTool),
+        Arc::new(GitCheckoutTool),
+    ];
+
+    if let Some(pg_provider) = pg_provider_opt {
+        let search_tool = Arc::new(SearchCodebaseTool {
+            llm: llm.clone(),
+            vector_db: pg_provider,
+        });
+        po_tools.push(search_tool.clone());
+        dev_tools.push(search_tool);
+    }
 
     let po = Arc::new(ProductOwner::new(llm.clone(), po_tools));
     let re = Arc::new(RequirementsEngineer::new(llm.clone()));
     
-    let dev_tools = vec![
-        Arc::new(WriteFileTool) as Arc<dyn jarvis::tools::Tool>,
-        Arc::new(ReadFileTool) as Arc<dyn jarvis::tools::Tool>,
-        Arc::new(ApplyPatchTool) as Arc<dyn jarvis::tools::Tool>,
-    ];
     let dev = Arc::new(SeniorDeveloper::new(llm.clone(), dev_tools));
 
     let refinement_tools = vec![
@@ -114,7 +148,7 @@ async fn main() -> Result<()> {
     manager.register_agent("QATester".to_string(), qa);
     manager.register_agent("Librarian".to_string(), librarian);
 
-    let result = manager.run("ProductOwner", args.task).await?;
+    let result = manager.run_with_session("ProductOwner", args.task, args.session_id).await?;
 
     println!("\n--- FINAL RESULT ---\n{}", result);
 

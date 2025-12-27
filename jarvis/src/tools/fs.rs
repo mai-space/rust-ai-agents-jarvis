@@ -1,9 +1,11 @@
 use crate::tools::Tool;
+use crate::providers::{LlmProvider, VectorDbProvider};
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 pub struct ListFilesTool;
 
@@ -147,6 +149,30 @@ impl Tool for ApplyPatchTool {
         use std::process::Command;
         use std::io::Write;
         
+        // Try dry-run first
+        let mut dry_run_child = Command::new("patch")
+            .arg("-p1")
+            .arg("--dry-run")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+            
+        {
+            let stdin = dry_run_child.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("Failed to open stdin"))?;
+            stdin.write_all(patch_content.as_bytes())?;
+        }
+        
+        let dry_run_output = dry_run_child.wait_with_output()?;
+        
+        if !dry_run_output.status.success() {
+            return Ok(json!({
+                "status": "conflict",
+                "message": "Patch would not apply cleanly",
+                "stderr": String::from_utf8_lossy(&dry_run_output.stderr)
+            }));
+        }
+
         let mut child = Command::new("patch")
             .arg("-p1")
             .stdin(std::process::Stdio::piped())
@@ -166,5 +192,30 @@ impl Tool for ApplyPatchTool {
         } else {
             Ok(json!({ "status": "error", "stderr": String::from_utf8_lossy(&output.stderr) }))
         }
+    }
+}
+
+pub struct SearchCodebaseTool {
+    pub llm: Arc<dyn LlmProvider>,
+    pub vector_db: Arc<dyn VectorDbProvider>,
+}
+
+#[async_trait]
+impl Tool for SearchCodebaseTool {
+    fn name(&self) -> &str {
+        "search_codebase"
+    }
+
+    fn description(&self) -> &str {
+        "Search the codebase using embeddings. Input: { \"query\": \"search query\" }"
+    }
+
+    async fn run(&self, input: Value) -> Result<Value> {
+        let query = input["query"].as_str().ok_or_else(|| anyhow::anyhow!("Query is required"))?;
+        
+        let embeddings = self.llm.get_embeddings(query).await?;
+        let results = self.vector_db.search(embeddings, 5).await?;
+        
+        Ok(json!({ "results": results }))
     }
 }

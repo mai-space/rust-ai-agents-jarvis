@@ -50,7 +50,29 @@ To prevent agents from getting stuck in "correction loops" (e.g., QA finding the
 - **Context Injection:** When a task is sent back (e.g., QA -> Dev), the failure logs and previous attempts are explicitly added to the next prompt.
 - **Human Escalation:** If `MAX_RETRIES` is reached, the Manager pauses execution and requests human intervention via the CLI.
 
-## 6. Development Roadmap
+## 6. Advanced Memory & Build Strategies
+
+### 6.1. Dual-Stream Memory (User vs. Project)
+To provide a truly personalized experience, Jarvis distinguishes between two types of long-term memory:
+
+1.  **Project Knowledge:** Technical details about the specific codebase, architectural decisions, and common patterns used in the project.
+2.  **User Preferences:** The specific style, constraints, and habits of the user (e.g., "Prefers functional Rust", "Always use `anyhow` for errors", "Minimalistic comments").
+
+**Interpretation & Persistence Logic:**
+- **Detection:** Agents (primarily the Librarian) are instructed to look for preference patterns in user instructions.
+- **Categorization:** Memory is stored in the Vector DB with metadata tags (`memory_type: "project"` or `memory_type: "user"`).
+- **Consolidation:** At the end of a session, the Librarian summarizes technical gains for the Project Stream and behavioral preferences for the User Stream.
+- **Dual RAG:** The LLM prompt is enriched by querying both streams separately, ensuring the agent is both technically grounded and personally aligned.
+
+### 6.2. Multi-Platform Build Process
+Jarvis is designed to be a native tool across all major operating systems.
+
+- **Windows:** Support via MSVC toolchain. Installation of PostgreSQL/pgvector recommended via Docker for maximum compatibility.
+- **Linux:** Native support for all major distributions. Package managers used for dependency resolution (Ollama, Postgres).
+- **macOS:** Native support for Intel and Apple Silicon. Homebrew used for easy dependency installation.
+- **CI/CD:** GitHub Actions matrix builds ensure that every commit is verified across all three platforms.
+
+## 7. Development Roadmap
 
 ### Phase 1: Foundation (Infrastructure)
 - [x] Initialize Rust workspace and core crates.
@@ -85,9 +107,21 @@ To prevent agents from getting stuck in "correction loops" (e.g., QA finding the
 - [x] Verify tool-calling autonomous behavior with integration tests.
 
 ### Phase 7: Long-Term Memory & Advanced Tooling
-- [ ] Integrate `VectorDbProvider` (Postgres) into `Manager` and `AgentContext`.
-- [ ] Implement RAG (Retrieval-Augmented Generation) logic in `run_llm_agent` to automatically pull relevant context from the vector database.
-- [ ] Add `GitCommitTool` and `GitCheckoutTool` for autonomous version control management.
-- [ ] Implement Global State persistence (saving `AgentContext` to Postgres) to allow resuming tasks after a restart.
-- [ ] Enhance `ApplyPatchTool` with better conflict resolution and error reporting.
-- [ ] Add a `SearchCodebaseTool` that uses embeddings to find relevant code snippets.
+- [x] Integrate `VectorDbProvider` (Postgres) into `Manager` and `AgentContext`.
+- [x] Implement RAG (Retrieval-Augmented Generation) logic in `run_llm_agent` to automatically pull relevant context from the vector database.
+- [x] Add `GitCommitTool` and `GitCheckoutTool` for autonomous version control management.
+- [x] Implement Global State persistence (saving `AgentContext` to Postgres) to allow resuming tasks after a restart.
+- [x] Enhance `ApplyPatchTool` with better conflict resolution and error reporting.
+- [x] Add a `SearchCodebaseTool` that uses embeddings to find relevant code snippets.
+
+### Phase 8: Personalized Memory & Context Awareness
+- [ ] Update Vector DB schema to support memory namespaces (User vs. Project).
+- [ ] Implement user preference extraction logic in agents.
+- [ ] Enhance RAG to perform dual-stream retrieval (Project context + User preferences).
+- [ ] Add `StorePreferenceTool` for explicit preference saving.
+
+### Phase 9: Distribution & Cross-Platform Support
+- [ ] Configure GitHub Actions matrix for Windows, Linux, and macOS.
+- [ ] Create installation scripts for `pgvector` and `Ollama` across all platforms.
+- [ ] Implement `cargo-dist` for automated binary releases.
+- [ ] Documentation for platform-specific edge cases.

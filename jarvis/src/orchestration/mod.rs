@@ -1,8 +1,10 @@
 use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::providers::{VectorDbProvider, PersistenceProvider};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn, error};
+use serde_json::json;
 
 pub trait HumanInTheLoop: Send + Sync {
     fn consult(&self, agent_name: &str, task: &str, history: &[String]) -> Result<String>;
@@ -12,6 +14,8 @@ pub struct Manager {
     agents: HashMap<String, Arc<dyn Agent>>,
     max_retries: usize,
     hitl: Option<Arc<dyn HumanInTheLoop>>,
+    vector_db: Option<Arc<dyn VectorDbProvider>>,
+    persistence: Option<Arc<dyn PersistenceProvider>>,
 }
 
 impl Manager {
@@ -20,6 +24,8 @@ impl Manager {
             agents: HashMap::new(),
             max_retries,
             hitl: None,
+            vector_db: None,
+            persistence: None,
         }
     }
 
@@ -28,20 +34,63 @@ impl Manager {
         self
     }
 
+    pub fn with_vector_db(mut self, vector_db: Arc<dyn VectorDbProvider>) -> Self {
+        self.vector_db = Some(vector_db);
+        self
+    }
+
+    pub fn with_persistence(mut self, persistence: Arc<dyn PersistenceProvider>) -> Self {
+        self.persistence = Some(persistence);
+        self
+    }
+
     pub fn register_agent(&mut self, name: String, agent: Arc<dyn Agent>) {
         self.agents.insert(name, agent);
     }
 
     pub async fn run(&self, initial_agent: &str, task: String) -> Result<String> {
+        self.run_with_session(initial_agent, task, None).await
+    }
+
+    pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>) -> Result<String> {
         let mut current_agent_name = initial_agent.to_string();
-        let mut context = AgentContext {
-            task,
-            history: Vec::new(),
+        
+        let mut context = if let (Some(persistence), Some(sid)) = (&self.persistence, &session_id) {
+            if let Some(state) = persistence.load_state(sid).await? {
+                info!("Manager: Resuming session '{}'", sid);
+                AgentContext {
+                    task: state["task"].as_str().unwrap_or(&task).to_string(),
+                    history: state["history"].as_array()
+                        .map(|a| a.iter().map(|v| v.as_str().unwrap_or("").to_string()).collect())
+                        .unwrap_or_default(),
+                    vector_db: self.vector_db.clone(),
+                }
+            } else {
+                AgentContext {
+                    task,
+                    history: Vec::new(),
+                    vector_db: self.vector_db.clone(),
+                }
+            }
+        } else {
+            AgentContext {
+                task,
+                history: Vec::new(),
+                vector_db: self.vector_db.clone(),
+            }
         };
 
         let mut retry_counts: HashMap<String, usize> = HashMap::new();
 
         loop {
+            if let (Some(persistence), Some(sid)) = (&self.persistence, &session_id) {
+                persistence.save_state(sid, json!({
+                    "task": context.task,
+                    "history": context.history,
+                    "current_agent": current_agent_name
+                })).await?;
+            }
+
             info!("Manager: Calling agent '{}'", current_agent_name);
             let agent = self.agents.get(&current_agent_name)
                 .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found", current_agent_name))?;

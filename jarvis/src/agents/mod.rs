@@ -8,13 +8,14 @@ pub mod refinement;
 use anyhow::Result;
 use async_trait::async_trait;
 use crate::tools::Tool;
-use crate::providers::LlmProvider;
+use crate::providers::{LlmProvider, VectorDbProvider};
 use std::sync::Arc;
 use serde_json::Value;
 
 pub struct AgentContext {
     pub task: String,
     pub history: Vec<String>,
+    pub vector_db: Option<Arc<dyn VectorDbProvider>>,
 }
 
 #[async_trait]
@@ -55,6 +56,20 @@ pub async fn run_llm_agent(
 
     loop {
         let mut full_prompt = system_prompt.clone();
+
+        if let Some(vector_db) = &context.vector_db {
+            if let Ok(embeddings) = llm.get_embeddings(&context.task).await {
+                if let Ok(results) = vector_db.search(embeddings, 3).await {
+                    if !results.is_empty() {
+                        full_prompt.push_str("\n\nRelevant Context from Vector Database:\n");
+                        for (i, res) in results.iter().enumerate() {
+                            full_prompt.push_str(&format!("{}. {}\n", i + 1, res));
+                        }
+                    }
+                }
+            }
+        }
+
         full_prompt.push_str(&format!("\n\nTask: {}\n", context.task));
         full_prompt.push_str(&format!("Global History: {:?}\n", context.history));
         full_prompt.push_str(&format!("Current Session Trace:\n{:?}\n", session_history));
