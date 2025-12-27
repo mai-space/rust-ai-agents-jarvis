@@ -74,7 +74,7 @@ async fn test_persistence() -> Result<()> {
     manager.register_agent("SimpleAgent".to_string(), agent);
 
     // Run first time - should save state
-    manager.run_with_session("SimpleAgent", "START".to_string(), Some("session1".to_string()), vec![]).await?;
+    let (_result, _session_id) = manager.run_with_session("SimpleAgent", "START".to_string(), Some("session1".to_string()), vec![]).await?;
     
     let saved_state = persistence.load_state("session1").await?.expect("State should be saved");
     assert_eq!(saved_state["task"], "SUCCESS");

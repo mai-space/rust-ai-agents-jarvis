@@ -72,7 +72,7 @@ async fn test_context_files_integration() -> Result<()> {
     manager.register_agent("CodeReviewAgent".to_string(), agent);
     
     // Run with context files
-    let result = manager.run_with_session(
+    let (result, _session_id) = manager.run_with_session(
         "CodeReviewAgent",
         "Review the authentication and model code".to_string(),
         None,
@@ -122,7 +122,7 @@ async fn test_multiple_context_files_with_different_sizes() -> Result<()> {
     let agent = Arc::new(CodeReviewAgent { llm });
     manager.register_agent("CodeReviewAgent".to_string(), agent);
     
-    let result = manager.run_with_session(
+    let (result, _session_id) = manager.run_with_session(
         "CodeReviewAgent",
         "Review all files".to_string(),
         None,

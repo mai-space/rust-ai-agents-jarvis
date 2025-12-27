@@ -360,8 +360,15 @@ async fn main() -> Result<()> {
             }
         }
         
-        let result = manager.run_with_session("ProductOwner", task, args.session_id, context_files).await?;
+        let (result, session_id) = manager.run_with_session("ProductOwner", task, args.session_id, context_files).await?;
         println!("\n--- FINAL RESULT ---\n{}", result);
+        
+        // Display session ID if available
+        if let Some(sid) = session_id {
+            println!("\n--- SESSION INFO ---");
+            println!("Session ID: {}", sid);
+            println!("To resume this session later, use: --session-id {}", sid);
+        }
         
         // Print metrics summary
         println!("\n{}", manager.get_metrics_summary());

@@ -52,7 +52,7 @@ async fn test_context_files_passed_to_agent() -> Result<()> {
         },
     ];
 
-    let result = manager.run_with_session(
+    let (result, _session_id) = manager.run_with_session(
         "TestAgent", 
         "Check context files".to_string(), 
         None,
@@ -80,7 +80,7 @@ async fn test_empty_context_files() -> Result<()> {
     ).await;
     
     // Should fail because no context files provided
-    assert!(result.is_err() || result.unwrap().contains("No context files"));
+    assert!(result.is_err() || result.unwrap().0.contains("No context files"));
     
     Ok(())
 }
