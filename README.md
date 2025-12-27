@@ -6,8 +6,11 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
 
 - **Autonomous Squad:** A full pipeline of agents: Product Owner, Requirements Engineer, Senior Developer, Accessibility/SEO Experts, Security Expert, QA Tester, and Librarian.
 - **Long-Term Memory:** Integrated RAG (Retrieval-Augmented Generation) using PostgreSQL and `pgvector` to remember project patterns and codebases.
+- **Project Context Awareness:** Automatic project detection and differentiation with project-scoped memory to avoid confusion between different codebases.
+- **Intelligent Loop Prevention:** Advanced handoff validation and loop detection prevents agents from getting stuck in infinite cycles.
+- **Smart Caching:** Project structure caching reduces redundant filesystem scans by 10-50x, dramatically improving performance.
 - **Session Persistence:** State-based persistence allows you to stop and resume complex tasks using unique session IDs.
-- **Autonomous Tooling:** Agents can use Git, File System, and Shell tools to implement features, run tests, and commit changes.
+- **Autonomous Tooling:** Agents can use Git, File System, Shell, and Code Analysis tools to implement features, run tests, and commit changes.
 - **Human-in-the-Loop (HITL):** Built-in escalation mechanism when agents reach retry limits, ensuring safety and control.
 - **Model Context Protocol (MCP):** Dynamic tool extension via external MCP servers (e.g., Brave Search, Google Maps).
 - **Agent Client Protocol (ACP):** Standardized API for IDE integration (JetBrains, VS Code).
