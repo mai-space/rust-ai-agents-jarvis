@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "jarvis",
+]
+resolver = "2"

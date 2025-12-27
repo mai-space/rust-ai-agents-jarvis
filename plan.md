@@ -53,21 +53,21 @@ To prevent agents from getting stuck in "correction loops" (e.g., QA finding the
 ## 6. Development Roadmap
 
 ### Phase 1: Foundation (Infrastructure)
-- [ ] Initialize Rust workspace and core crates.
-- [ ] Implement Ollama client and Postgres/pgvector integration.
-- [ ] Design the base `Agent` and `Tool` traits.
+- [x] Initialize Rust workspace and core crates.
+- [x] Implement Ollama client and Postgres/pgvector integration.
+- [x] Design the base `Agent` and `Tool` traits.
 
 ### Phase 2: Core Orchestration (The Hub)
-- [ ] Build the `Manager` to handle state transitions.
-- [ ] Implement basic File System tools (Read/List).
-- [ ] Create the CLI wrapper for initial user input.
+- [x] Build the `Manager` to handle state transitions.
+- [x] Implement basic File System tools (Read/List).
+- [x] Create the CLI wrapper for initial user input.
 
 ### Phase 3: Agent Realization (The Spokes)
-- [ ] Implement PO and Requirements Engineer logic.
-- [ ] Build the Senior Developer with code-writing capabilities.
-- [ ] Implement the QA Tester with test-running capabilities.
+- [x] Implement PO and Requirements Engineer logic.
+- [x] Build the Senior Developer with code-writing capabilities.
+- [x] Implement the QA Tester with test-running capabilities.
 
 ### Phase 4: Polish & Safety
-- [ ] Add Security Expert and Librarian.
-- [ ] Implement Loop Management and Human-in-the-loop triggers.
-- [ ] Comprehensive testing and documentation.
+- [x] Add Security Expert and Librarian.
+- [x] Implement Loop Management and Human-in-the-loop triggers.
+- [x] Comprehensive testing and documentation.
