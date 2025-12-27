@@ -22,6 +22,13 @@ impl VectorDbProvider for MockVectorDb {
     async fn search(&self, _vector: Vec<f32>, _limit: usize, _namespace: &str) -> Result<Vec<Value>> {
         Ok(self.data.lock().await.clone())
     }
+    async fn store_with_project(&self, _id: &str, _vector: Vec<f32>, metadata: Value, _namespace: &str, _project_id: &str) -> Result<()> {
+        self.data.lock().await.push(metadata);
+        Ok(())
+    }
+    async fn search_with_project(&self, _vector: Vec<f32>, _limit: usize, _namespace: &str, _project_id: &str) -> Result<Vec<Value>> {
+        Ok(self.data.lock().await.clone())
+    }
 }
 
 struct MockPersistence {
@@ -85,6 +92,8 @@ async fn test_rag_logic() -> Result<()> {
         history: Vec::new(),
         vector_db: Some(vector_db),
         available_agents: vec!["SimpleAgent".to_string()],
+        project_metadata: None,
+        handoff_count: std::collections::HashMap::new(),
     };
 
     // We can't easily check the prompt sent to LLM here without more mocking,

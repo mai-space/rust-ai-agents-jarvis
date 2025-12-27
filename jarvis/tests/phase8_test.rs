@@ -31,6 +31,21 @@ impl VectorDbProvider for MockVectorDb {
             Ok(self.project_data.lock().await.clone())
         }
     }
+    async fn store_with_project(&self, _id: &str, _vector: Vec<f32>, metadata: Value, namespace: &str, _project_id: &str) -> Result<()> {
+        if namespace == "user" {
+            self.user_data.lock().await.push(metadata);
+        } else {
+            self.project_data.lock().await.push(metadata);
+        }
+        Ok(())
+    }
+    async fn search_with_project(&self, _vector: Vec<f32>, _limit: usize, namespace: &str, _project_id: &str) -> Result<Vec<Value>> {
+        if namespace == "user" {
+            Ok(self.user_data.lock().await.clone())
+        } else {
+            Ok(self.project_data.lock().await.clone())
+        }
+    }
 }
 
 #[tokio::test]
@@ -46,6 +61,8 @@ async fn test_dual_stream_rag() -> Result<()> {
         history: Vec::new(),
         vector_db: Some(vector_db.clone()),
         available_agents: vec!["Librarian".to_string()],
+        project_metadata: None,
+        handoff_count: std::collections::HashMap::new(),
     };
 
     let lib = Librarian::new(llm.clone(), vec![]);
