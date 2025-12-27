@@ -23,6 +23,7 @@ async-trait = "0.1"
 dotenvy = "0.15"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
+patch = "0.7"
 # Pins for Rust 1.75.0 compatibility
 base64ct = "=1.6.0"
 home = "=0.5.9"

@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub struct ListFilesTool;
@@ -133,6 +133,157 @@ impl Tool for ReadStructureTool {
 
 pub struct ApplyPatchTool;
 
+// Helper function to apply a unified diff patch in a cross-platform way
+fn apply_unified_patch(patch_content: &str, base_dir: &Path) -> Result<Vec<String>> {
+    // Try to parse as multiple patches first, fall back to single if that fails
+    let patches = match patch::Patch::from_multiple(patch_content) {
+        Ok(patches) => patches,
+        Err(multi_err) => {
+            // If multi-patch parsing fails, try single patch
+            match patch::Patch::from_single(patch_content) {
+                Ok(single) => vec![single],
+                Err(single_err) => {
+                    return Err(anyhow::anyhow!(
+                        "Failed to parse patch. Multi-patch error: {}, Single-patch error: {}",
+                        multi_err, single_err
+                    ));
+                }
+            }
+        }
+    };
+    
+    let mut applied_files = Vec::new();
+    
+    for parsed_patch in patches {
+        // Get the old and new filenames, stripping the a/ and b/ prefixes (p1 behavior)
+        let old_file = parsed_patch.old.path.strip_prefix("a/")
+            .or_else(|| parsed_patch.old.path.strip_prefix("b/"))
+            .unwrap_or(&parsed_patch.old.path);
+        let new_file = parsed_patch.new.path.strip_prefix("b/")
+            .or_else(|| parsed_patch.new.path.strip_prefix("a/"))
+            .unwrap_or(&parsed_patch.new.path);
+        
+        // Use the new file path (or old file if new is /dev/null for deletions)
+        let file_path = if new_file == "/dev/null" {
+            base_dir.join(old_file)
+        } else {
+            base_dir.join(new_file)
+        };
+        
+        // Handle file creation, deletion, or modification
+        if old_file == "/dev/null" {
+            // New file creation
+            if let Some(parent) = file_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            
+            // Collect all added lines
+            let mut new_content = String::new();
+            for hunk in &parsed_patch.hunks {
+                for line in &hunk.lines {
+                    match line {
+                        patch::Line::Add(content) => {
+                            new_content.push_str(content);
+                            new_content.push('\n');
+                        }
+                        patch::Line::Context(content) => {
+                            new_content.push_str(content);
+                            new_content.push('\n');
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            fs::write(&file_path, new_content)?;
+            applied_files.push(file_path.display().to_string());
+        } else if new_file == "/dev/null" {
+            // File deletion
+            if file_path.exists() {
+                fs::remove_file(&file_path)?;
+                applied_files.push(file_path.display().to_string());
+            }
+        } else {
+            // File modification
+            let original_content = fs::read_to_string(&file_path)
+                .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", file_path.display(), e))?;
+            let mut lines: Vec<&str> = original_content.lines().collect();
+            
+            // Apply each hunk
+            for hunk in &parsed_patch.hunks {
+                // Validate hunk start position
+                if hunk.old_range.start == 0 {
+                    return Err(anyhow::anyhow!(
+                        "Invalid hunk in file {}: start position cannot be 0",
+                        file_path.display()
+                    ));
+                }
+                
+                let old_start = (hunk.old_range.start - 1) as usize;
+                
+                // Collect new lines from the hunk
+                let mut new_lines: Vec<&str> = Vec::new();
+                let mut expected_old_lines: Vec<&str> = Vec::new();
+                
+                for line in &hunk.lines {
+                    match line {
+                        patch::Line::Add(content) => {
+                            new_lines.push(content.as_ref());
+                        }
+                        patch::Line::Remove(content) => {
+                            expected_old_lines.push(content.as_ref());
+                        }
+                        patch::Line::Context(content) => {
+                            expected_old_lines.push(content.as_ref());
+                            new_lines.push(content.as_ref());
+                        }
+                    }
+                }
+                
+                // Verify we have enough lines in the file
+                if old_start + expected_old_lines.len() > lines.len() {
+                    return Err(anyhow::anyhow!(
+                        "Patch conflict in file {}: hunk at line {} extends beyond file end (file has {} lines)",
+                        file_path.display(),
+                        old_start + 1,
+                        lines.len()
+                    ));
+                }
+                
+                // Verify the old lines match (basic conflict detection)
+                let actual_old_lines: Vec<&str> = lines.iter()
+                    .skip(old_start)
+                    .take(expected_old_lines.len())
+                    .copied()
+                    .collect();
+                
+                if actual_old_lines != expected_old_lines {
+                    return Err(anyhow::anyhow!(
+                        "Patch conflict in file {}: expected lines don't match at line {}",
+                        file_path.display(),
+                        old_start + 1
+                    ));
+                }
+                
+                // Apply the change using the number of expected old lines for consistency
+                lines.splice(old_start..old_start + expected_old_lines.len(), new_lines.iter().copied());
+            }
+            
+            // Write the modified content back
+            let new_content = lines.join("\n");
+            let new_content = if original_content.ends_with('\n') {
+                format!("{}\n", new_content)
+            } else {
+                new_content
+            };
+            
+            fs::write(&file_path, new_content)?;
+            applied_files.push(file_path.display().to_string());
+        }
+    }
+    
+    Ok(applied_files)
+}
+
 #[async_trait]
 impl Tool for ApplyPatchTool {
     fn name(&self) -> &str {
@@ -140,67 +291,24 @@ impl Tool for ApplyPatchTool {
     }
 
     fn description(&self) -> &str {
-        "Apply a unified diff patch to the codebase"
+        "Apply a unified diff patch to the codebase (cross-platform)"
     }
 
     async fn run(&self, input: Value) -> Result<Value> {
         let patch_content = input["patch"].as_str().ok_or_else(|| anyhow::anyhow!("Patch content is required"))?;
-        let cwd = input["cwd"].as_str();
+        let cwd = input["cwd"].as_str().unwrap_or(".");
+        let base_dir = PathBuf::from(cwd);
         
-        use std::process::Command;
-        use std::io::Write;
-        
-        // Try dry-run first
-        let mut dry_run_cmd = Command::new("patch");
-        dry_run_cmd.arg("-p1").arg("--dry-run");
-        if let Some(c) = cwd {
-            dry_run_cmd.current_dir(c);
-        }
-        
-        let mut dry_run_child = dry_run_cmd
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
-            
-        {
-            let stdin = dry_run_child.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("Failed to open stdin"))?;
-            stdin.write_all(patch_content.as_bytes())?;
-        }
-        
-        let dry_run_output = dry_run_child.wait_with_output()?;
-        
-        if !dry_run_output.status.success() {
-            return Ok(json!({
-                "status": "conflict",
-                "message": "Patch would not apply cleanly",
-                "stderr": String::from_utf8_lossy(&dry_run_output.stderr)
-            }));
-        }
-
-        let mut cmd = Command::new("patch");
-        cmd.arg("-p1");
-        if let Some(c) = cwd {
-            cmd.current_dir(c);
-        }
-
-        let mut child = cmd
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
-            
-        {
-            let stdin = child.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("Failed to open stdin"))?;
-            stdin.write_all(patch_content.as_bytes())?;
-        }
-        
-        let output = child.wait_with_output()?;
-        
-        if output.status.success() {
-            Ok(json!({ "status": "success", "stdout": String::from_utf8_lossy(&output.stdout) }))
-        } else {
-            Ok(json!({ "status": "error", "stderr": String::from_utf8_lossy(&output.stderr) }))
+        match apply_unified_patch(patch_content, &base_dir) {
+            Ok(files) => Ok(json!({ 
+                "status": "success", 
+                "applied_files": files,
+                "message": format!("Successfully applied patch to {} file(s)", files.len())
+            })),
+            Err(e) => Ok(json!({ 
+                "status": "error", 
+                "message": format!("Failed to apply patch: {}", e)
+            }))
         }
     }
 }
@@ -331,10 +439,94 @@ mod tests {
             "cwd": test_dir.to_str().unwrap()
         })).await?;
         
-        assert_eq!(result["status"], "success", "Patch failed: {}", result["stderr"]);
+        assert_eq!(result["status"], "success", "Patch failed: {}", result["message"]);
         
         let new_content = fs::read_to_string(&file_path)?;
         assert_eq!(new_content, "Hello Jarvis\n");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_apply_patch_multiline() -> Result<()> {
+        let test_dir = setup_test_dir("test_apply_patch_multiline");
+        let file_path = test_dir.join("code.rs");
+        fs::write(&file_path, "fn main() {\n    println!(\"Hello\");\n}\n")?;
+
+        let patch = 
+"--- a/code.rs
++++ b/code.rs
+@@ -1,3 +1,4 @@
+ fn main() {
+-    println!(\"Hello\");
++    println!(\"Hello, World!\");
++    println!(\"Welcome to Jarvis\");
+ }
+";
+
+        let tool = ApplyPatchTool;
+        let result = tool.run(json!({ 
+            "patch": patch,
+            "cwd": test_dir.to_str().unwrap()
+        })).await?;
+        
+        assert_eq!(result["status"], "success", "Patch failed: {}", result["message"]);
+        
+        let new_content = fs::read_to_string(&file_path)?;
+        assert_eq!(new_content, "fn main() {\n    println!(\"Hello, World!\");\n    println!(\"Welcome to Jarvis\");\n}\n");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_apply_patch_new_file() -> Result<()> {
+        let test_dir = setup_test_dir("test_apply_patch_new_file");
+
+        let patch = 
+"--- /dev/null
++++ b/newfile.txt
+@@ -0,0 +1,2 @@
++This is a new file
++Created by patch
+";
+
+        let tool = ApplyPatchTool;
+        let result = tool.run(json!({ 
+            "patch": patch,
+            "cwd": test_dir.to_str().unwrap()
+        })).await?;
+        
+        assert_eq!(result["status"], "success", "Patch failed: {}", result["message"]);
+        
+        let file_path = test_dir.join("newfile.txt");
+        assert!(file_path.exists(), "New file should be created");
+        let content = fs::read_to_string(&file_path)?;
+        assert_eq!(content, "This is a new file\nCreated by patch\n");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_apply_patch_delete_file() -> Result<()> {
+        let test_dir = setup_test_dir("test_apply_patch_delete_file");
+        let file_path = test_dir.join("todelete.txt");
+        fs::write(&file_path, "This file will be deleted\n")?;
+
+        let patch = 
+"--- a/todelete.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-This file will be deleted
+";
+
+        let tool = ApplyPatchTool;
+        let result = tool.run(json!({ 
+            "patch": patch,
+            "cwd": test_dir.to_str().unwrap()
+        })).await?;
+        
+        assert_eq!(result["status"], "success", "Patch failed: {}", result["message"]);
+        assert!(!file_path.exists(), "File should be deleted");
         
         Ok(())
     }
