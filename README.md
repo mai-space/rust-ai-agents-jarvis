@@ -24,26 +24,44 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
 
 ## 📥 Installation & Setup
 
+### Global Installation (Recommended)
+To use Jarvis as a CLI tool in any project, install it globally using cargo:
+```bash
+cargo install --path jarvis
+```
+
+After installation, run the interactive setup to configure your environment:
+```bash
+jarvis setup
+```
+This will guide you through setting up your Ollama host, model, and database connection. The configuration is stored in your user's standard config directory (e.g., `~/.config/jarvis/config.toml` on Linux).
+
+Once configured, you can run Jarvis from any project directory:
+```bash
+jarvis --task "Add a new feature to this project"
+```
+
+### Scripted Installation
 We provide installation scripts to help you set up dependencies like Ollama and PostgreSQL with `pgvector` on various platforms.
 
-### Linux
+#### Linux
 ```bash
 chmod +x scripts/install_linux.sh
 ./scripts/install_linux.sh
 ```
 
-### macOS
+#### macOS
 ```bash
 chmod +x scripts/install_macos.sh
 ./scripts/install_macos.sh
 ```
 
-### Windows
+#### Windows
 ```powershell
 .\scripts\install_windows.ps1
 ```
 
-### Manual Configuration
+### Manual Development Setup
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/your-repo/jarvis.git
@@ -51,12 +69,12 @@ chmod +x scripts/install_macos.sh
    ```
 
 2. **Configure Database:**
-   Ensure PostgreSQL is running and you have a database created. Set the `DATABASE_URL` environment variable:
+   Ensure PostgreSQL is running and you have a database created. You can use the `setup` command after installing or set the `DATABASE_URL` environment variable:
    ```bash
    export DATABASE_URL="postgres://user:password@localhost/jarvis"
    ```
 
-3. **Install Dependencies:**
+3. **Build:**
    ```bash
    cargo build
    ```
@@ -72,20 +90,14 @@ chmod +x scripts/install_macos.sh
 To start a new task with Jarvis:
 
 ```bash
-cargo run --package jarvis -- \
-  --task "Implement a simple REST API for user registration using Axum" \
-  --model "llama3" \
-  --database-url $DATABASE_URL
+jarvis --task "Implement a simple REST API for user registration using Axum"
 ```
 
 ### Resuming a Session
 If a task was interrupted or you want to continue working on it:
 
 ```bash
-cargo run --package jarvis -- \
-  --task "Continue previous task" \
-  --session-id "your-unique-session-id" \
-  --database-url $DATABASE_URL
+jarvis --task "Continue previous task" --session-id "your-unique-session-id"
 ```
 
 ## 🔌 Model Context Protocol (MCP) & IDE Integration
@@ -93,34 +105,25 @@ cargo run --package jarvis -- \
 Jarvis is designed to be highly extensible and integrated into professional development environments.
 
 ### Using External MCP Tools
-You can extend Jarvis's capabilities by connecting it to any MCP-compliant server. Create an `mcp_config.json`:
-```json
-{
-  "mcpServers": {
-    "everything": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-everything"]
-    }
-  }
-}
-```
-Run with:
+You can extend Jarvis's capabilities by connecting it to any MCP-compliant server. Create an `mcp_config.json` or configure it via `jarvis setup`.
+
+Run with specific config:
 ```bash
-cargo run --package jarvis -- --task "..." --mcp-config mcp_config.json
+jarvis --task "..." --mcp-config mcp_config.json
 ```
 
 ### JetBrains IDE Integration (ACP)
 Jarvis implements the **Agent Client Protocol (ACP)**, allowing it to act as a backend for JetBrains IDEs.
 1. Start Jarvis in ACP mode:
    ```bash
-   cargo run --package jarvis -- --serve-acp --acp-port 8000
+   jarvis --serve-acp --acp-port 8000
    ```
 2. Connect your IDE to `http://localhost:8000` using the Agent Protocol client.
 
 ### Exposing Jarvis as an MCP Server
 You can also let other AI assistants (like JetBrains AI) use Jarvis's specialized squad as a tool:
 ```bash
-cargo run --package jarvis -- --serve-mcp
+jarvis --serve-mcp
 ```
 
 ## 🏗 Extending Jarvis

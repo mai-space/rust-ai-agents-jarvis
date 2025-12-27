@@ -18,7 +18,9 @@ use jarvis::providers::postgres::PostgresProvider;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::io::{self, Write};
-use clap::Parser;
+use clap::{Parser, Subcommand};
+use jarvis::config::Config;
+use dialoguer::Input;
 
 struct CliHitl;
 
@@ -44,35 +46,95 @@ impl jarvis::orchestration::HumanInTheLoop for CliHitl {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// The task to perform
     #[arg(short, long)]
-    task: String,
+    task: Option<String>,
 
-    #[arg(long, default_value = "localhost")]
-    ollama_host: String,
+    /// Ollama host
+    #[arg(long)]
+    ollama_host: Option<String>,
 
-    #[arg(long, default_value_t = 11434)]
-    ollama_port: u16,
+    /// Ollama port
+    #[arg(long)]
+    ollama_port: Option<u16>,
 
-    #[arg(long, default_value = "llama3")]
-    model: String,
+    /// Model to use
+    #[arg(long)]
+    model: Option<String>,
 
+    /// Database URL for vector storage and persistence
     #[arg(long, env = "DATABASE_URL")]
     database_url: Option<String>,
 
+    /// Session ID for continuing a conversation
     #[arg(long)]
     session_id: Option<String>,
 
+    /// Path to MCP config file
     #[arg(long)]
     mcp_config: Option<String>,
 
+    /// Start as an ACP server
     #[arg(long)]
     serve_acp: bool,
 
+    /// Port for ACP server
     #[arg(long, default_value_t = 8000)]
     acp_port: u16,
 
+    /// Start as an MCP server
     #[arg(long)]
     serve_mcp: bool,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Interactive setup of Jarvis configuration
+    Setup,
+}
+
+async fn run_setup() -> Result<()> {
+    let mut config = Config::load().unwrap_or_default();
+
+    println!("Welcome to Jarvis Setup!");
+
+    config.ollama_host = Input::new()
+        .with_prompt("Ollama Host")
+        .default(config.ollama_host)
+        .interact_text()?;
+
+    config.ollama_port = Input::new()
+        .with_prompt("Ollama Port")
+        .default(config.ollama_port)
+        .interact_text()?;
+
+    config.model = Input::new()
+        .with_prompt("Model to use")
+        .default(config.model)
+        .interact_text()?;
+
+    let db_url: String = Input::new()
+        .with_prompt("Database URL (Postgres)")
+        .with_initial_text(config.database_url.unwrap_or_default())
+        .allow_empty(true)
+        .interact_text()?;
+    
+    config.database_url = if db_url.is_empty() { None } else { Some(db_url) };
+
+    let mcp_path: String = Input::new()
+        .with_prompt("MCP Config Path")
+        .with_initial_text(config.mcp_config.unwrap_or_default())
+        .allow_empty(true)
+        .interact_text()?;
+
+    config.mcp_config = if mcp_path.is_empty() { None } else { Some(mcp_path) };
+
+    config.save()?;
+    println!("Configuration saved to {:?}", Config::get_config_path()?);
+    Ok(())
 }
 
 async fn load_mcp_tools(config_path: &str) -> Result<Vec<Arc<dyn jarvis::tools::Tool>>> {
@@ -118,14 +180,27 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
+    if let Some(Commands::Setup) = args.command {
+        run_setup().await?;
+        return Ok(());
+    }
+
+    let config = Config::load().unwrap_or_default();
+
+    let ollama_host = args.ollama_host.unwrap_or(config.ollama_host);
+    let ollama_port = args.ollama_port.unwrap_or(config.ollama_port);
+    let model = args.model.unwrap_or(config.model);
+    let database_url = args.database_url.or(config.database_url);
+    let mcp_config = args.mcp_config.or(config.mcp_config);
+
     info!("Starting Jarvis AI Agent Squad...");
 
-    let llm = Arc::new(OllamaProvider::new(args.ollama_host, args.ollama_port, args.model));
+    let llm = Arc::new(OllamaProvider::new(ollama_host, ollama_port, model));
     
     let mut manager = Manager::new(3).with_hitl(Arc::new(CliHitl));
 
     let mut pg_provider_opt = None;
-    if let Some(db_url) = args.database_url {
+    if let Some(db_url) = database_url {
         let pool = PgPoolOptions::new()
             .max_connections(5)
             .connect(&db_url).await?;
@@ -139,7 +214,7 @@ async fn main() -> Result<()> {
     }
 
     let mut mcp_tools = Vec::new();
-    if let Some(config_path) = args.mcp_config {
+    if let Some(config_path) = mcp_config {
         mcp_tools = load_mcp_tools(&config_path).await?;
         info!("Loaded {} tools from MCP servers", mcp_tools.len());
     }
@@ -243,9 +318,11 @@ async fn main() -> Result<()> {
     } else if args.serve_acp {
         info!("Starting ACP server on port {}...", args.acp_port);
         jarvis::orchestration::acp::start_acp_server(manager, args.acp_port).await?;
-    } else {
-        let result = manager.run_with_session("ProductOwner", args.task, args.session_id).await?;
+    } else if let Some(task) = args.task {
+        let result = manager.run_with_session("ProductOwner", task, args.session_id).await?;
         println!("\n--- FINAL RESULT ---\n{}", result);
+    } else {
+        println!("No task provided. Use --task \"your task\" or run 'jarvis setup' to configure.");
     }
 
     Ok(())

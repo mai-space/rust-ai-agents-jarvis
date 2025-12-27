@@ -132,3 +132,9 @@ Jarvis is designed to be a native tool across all major operating systems.
 - [x] Add dynamic tool registration via MCP configuration files.
 - [x] Create a bridge to expose Jarvis agents via MCP/ACP servers.
 - [x] Verify IDE integration with a sample JetBrains plugin or connection.
+
+### Phase 11: CLI Empowerment & Global Usage
+- [x] Implement persistent global configuration in the user's config directory.
+- [x] Add an interactive `setup` command for easy first-time configuration.
+- [x] Decouple CLI arguments from project-specific hardcoding.
+- [x] Update documentation for global installation and usage in any project.
