@@ -138,3 +138,4 @@ Jarvis is designed to be a native tool across all major operating systems.
 - [x] Add an interactive `setup` command for easy first-time configuration.
 - [x] Decouple CLI arguments from project-specific hardcoding.
 - [x] Update documentation for global installation and usage in any project.
+- [x] Add version pins for Rust 1.75.0 compatibility in `Cargo.toml`.

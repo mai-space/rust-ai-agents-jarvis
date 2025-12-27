@@ -27,7 +27,8 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
 ### Global Installation (Recommended)
 To use Jarvis as a CLI tool in any project, install it globally using cargo:
 ```bash
-cargo install --path jarvis
+# We recommend using --locked to ensure compatibility with Rust 1.75.0+
+cargo install --path jarvis --locked
 ```
 
 After installation, run the interactive setup to configure your environment:
