@@ -74,7 +74,7 @@ pub async fn run_llm_agent(
         identity, tools_desc, context.available_agents.join("\n- ")
     );
 
-    let task_embeddings = if let Some(_) = &context.vector_db {
+    let task_embeddings = if context.vector_db.is_some() {
         match timeout(Duration::from_secs(30), llm.get_embeddings(&context.task)).await {
             Ok(Ok(e)) => Some(e),
             Ok(Err(err)) => {
@@ -189,7 +189,7 @@ pub async fn run_llm_agent(
 
             // Strip numbering like "1. " or "1) "
             if !line.is_empty() && line.chars().next().unwrap().is_ascii_digit() {
-                if let Some(pos) = line.find(|c: char| c == '.' || c == ')') {
+                if let Some(pos) = line.find(['.', ')']) {
                     if pos < 4 {
                         line = line[pos + 1..].trim();
                     }
@@ -370,7 +370,7 @@ fn sanitize_model_response(response: &str) -> String {
         
         // Strip numbering like "1. " or "1) "
         if !line.is_empty() && line.chars().next().unwrap().is_ascii_digit() {
-            if let Some(pos) = line.find(|c: char| c == '.' || c == ')') {
+            if let Some(pos) = line.find(['.', ')']) {
                 if pos < 4 {
                     line = line[pos + 1..].trim();
                 }
