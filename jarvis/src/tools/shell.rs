@@ -13,13 +13,22 @@ impl Tool for RunTestsTool {
     }
 
     fn description(&self) -> &str {
-        "Run cargo tests in the project"
+        "Run cargo tests in the project. Optional arguments can be passed via 'args' array."
     }
 
-    async fn run(&self, _input: Value) -> Result<Value> {
-        let output = Command::new("cargo")
-            .arg("test")
-            .output()?;
+    async fn run(&self, input: Value) -> Result<Value> {
+        let mut cmd = Command::new("cargo");
+        cmd.arg("test");
+
+        if let Some(args) = input.get("args").and_then(|v| v.as_array()) {
+            for arg in args {
+                if let Some(s) = arg.as_str() {
+                    cmd.arg(s);
+                }
+            }
+        }
+
+        let output = cmd.output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -42,16 +51,25 @@ impl Tool for StaticAnalysisTool {
     }
 
     fn description(&self) -> &str {
-        "Run cargo clippy for static analysis"
+        "Run cargo clippy for static analysis. Optional arguments can be passed via 'args' array."
     }
 
-    async fn run(&self, _input: Value) -> Result<Value> {
-        let output = Command::new("cargo")
-            .arg("clippy")
-            .arg("--")
-            .arg("-D")
-            .arg("warnings")
-            .output()?;
+    async fn run(&self, input: Value) -> Result<Value> {
+        let mut cmd = Command::new("cargo");
+        cmd.arg("clippy");
+        cmd.arg("--");
+        cmd.arg("-D");
+        cmd.arg("warnings");
+
+        if let Some(args) = input.get("args").and_then(|v| v.as_array()) {
+            for arg in args {
+                if let Some(s) = arg.as_str() {
+                    cmd.arg(s);
+                }
+            }
+        }
+
+        let output = cmd.output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -73,7 +91,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_tests_tool() -> Result<()> {
         let tool = RunTestsTool;
-        let result = tool.run(json!({})).await?;
+        let result = tool.run(json!({"args": ["--version"]})).await?;
         assert!(result.get("stdout").is_some());
         Ok(())
     }
@@ -81,7 +99,7 @@ mod tests {
     #[tokio::test]
     async fn test_static_analysis_tool() -> Result<()> {
         let tool = StaticAnalysisTool;
-        let result = tool.run(json!({})).await?;
+        let result = tool.run(json!({"args": ["--version"]})).await?;
         assert!(result.get("stdout").is_some());
         Ok(())
     }

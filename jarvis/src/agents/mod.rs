@@ -296,7 +296,7 @@ pub async fn run_llm_agent(
         }
 
         // Prevent infinite loops in one agent process
-        if session_history.len() > 100 {
+        if session_history.len() > 20 {
             return Ok(AgentOutput::Error("Agent exceeded maximum interaction steps".to_string()));
         }
     }

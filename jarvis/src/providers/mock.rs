@@ -7,19 +7,19 @@ pub struct MockLlm;
 #[async_trait]
 impl LlmProvider for MockLlm {
     async fn generate(&self, prompt: &str) -> Result<String> {
-        if prompt.contains("Identity: ProductOwner") {
+        if prompt.contains("Identity: ProductOwner") && prompt.contains("- RequirementsEngineer") {
             Ok("HANDOFF RequirementsEngineer InitialPlanningComplete PO_Analyzed_Codebase".to_string())
-        } else if prompt.contains("Identity: RequirementsEngineer") {
+        } else if prompt.contains("Identity: RequirementsEngineer") && prompt.contains("- SeniorDeveloper") {
             Ok("HANDOFF SeniorDeveloper PlanGenerated 1.Implement_Login".to_string())
-        } else if prompt.contains("Identity: SeniorDeveloper") {
+        } else if prompt.contains("Identity: SeniorDeveloper") && prompt.contains("- AccessibilityExpert") {
             Ok("HANDOFF AccessibilityExpert ImplementationComplete Dev_Implemented_Login".to_string())
-        } else if prompt.contains("Identity: AccessibilityExpert") {
+        } else if prompt.contains("Identity: AccessibilityExpert") && prompt.contains("- SEOExpert") {
             Ok("HANDOFF SEOExpert AccessibilityCheckPassed Accessibility_Verified".to_string())
-        } else if prompt.contains("Identity: SEOExpert") {
+        } else if prompt.contains("Identity: SEOExpert") && prompt.contains("- SecurityExpert") {
             Ok("HANDOFF SecurityExpert SEOCheckPassed SEO_Verified".to_string())
-        } else if prompt.contains("Identity: QATester") {
+        } else if prompt.contains("Identity: QATester") && prompt.contains("- Librarian") {
             Ok("HANDOFF Librarian QAVerificationPassed QA_Verified".to_string())
-        } else if prompt.contains("Identity: SecurityExpert") {
+        } else if prompt.contains("Identity: SecurityExpert") && prompt.contains("- QATester") {
             Ok("HANDOFF QATester SecurityCheckPassed Security_Verified".to_string())
         } else if prompt.contains("Identity: Librarian") {
             Ok("SUCCESS Task finalized by Librarian".to_string())
