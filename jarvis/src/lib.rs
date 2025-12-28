@@ -6,3 +6,4 @@ pub mod mcp;
 pub mod config;
 pub mod project_context;
 pub mod metrics;
+pub mod events;

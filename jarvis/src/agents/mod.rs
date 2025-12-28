@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use crate::tools::Tool;
 use crate::providers::{LlmProvider, VectorDbProvider};
 use crate::project_context::ProjectMetadata;
+use crate::events::{EventBroadcaster, TaskSummary};
 use std::sync::Arc;
 use serde_json::Value;
 use tracing::{info, debug, warn};
@@ -23,6 +24,8 @@ pub struct AgentContext {
     pub project_metadata: Option<ProjectMetadata>,
     pub handoff_count: std::collections::HashMap<String, usize>,
     pub context_files: Vec<ContextFile>,
+    pub event_broadcaster: Option<Arc<EventBroadcaster>>,
+    pub task_summary: Arc<tokio::sync::RwLock<TaskSummary>>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,8 +61,21 @@ pub async fn run_llm_agent(
     let mut executed_tools = std::collections::HashSet::new();
     let capabilities = agent.capabilities();
     let identity = agent.identity();
+    
+    let agent_name = identity.split(':').next().unwrap_or(&identity).to_string();
 
-    info!("Agent starting: {}", identity.split(':').next().unwrap_or(&identity));
+    info!("Agent starting: {}", &agent_name);
+    
+    // Emit agent started event
+    if let Some(broadcaster) = &context.event_broadcaster {
+        broadcaster.agent_started(agent_name.clone()).await;
+    }
+    
+    // Track this agent in the summary
+    {
+        let mut summary = context.task_summary.write().await;
+        summary.add_agent(agent_name.clone());
+    }
 
     let tools_desc = capabilities.iter()
         .map(|t| format!("{}: {}", t.name(), t.description()))
@@ -67,7 +83,7 @@ pub async fn run_llm_agent(
         .join("\n");
 
     let system_prompt = format!(
-        "Identity: {}\n\nAvailable Tools:\n{}\n\nAvailable Agents for HANDOFF:\n- {}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n\n\
+        "Identity: {}\n\nAvailable Tools:\n{}\n\nAvailable Agents for HANDOFF:\n- {}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n- PLAN <markdown_plan> (for structured planning output)\n\n\
         Rules:\n\
         1. Provide a THOUGHT: line before your command to explain your reasoning.\n\
         2. Provide the command on a NEW line after your thought.\n\
@@ -76,12 +92,13 @@ pub async fn run_llm_agent(
         5. Provide ONLY the THOUGHT and the command. Avoid conversational filler.\n\
         6. DO NOT repeat the same tool call with the same arguments if you have already received the result in this session.\n\
         7. DO NOT use markdown code blocks (```) for your commands. Provide them as plain text lines.\n\
-        8. You MUST provide exactly ONE command (CALL, HANDOFF, SUCCESS, or ERROR) in every turn.\n\
+        8. You MUST provide exactly ONE command (CALL, HANDOFF, SUCCESS, ERROR, or PLAN) in every turn.\n\
         9. HANDOFF target MUST be one of the available agents listed above.\n\
         10. CRITICAL: NEVER hand off to yourself. You cannot hand off to the same agent you are currently acting as.\n\
         11. Focus on YOUR specific role and responsibilities. Do NOT try to do other agents' work.\n\
         12. If you find yourself in a loop (doing the same thing repeatedly), HANDOFF or report SUCCESS/ERROR.\n\
-        13. Be decisive: After gathering sufficient information, take action or hand off. Don't overthink.\n\n\
+        13. Be decisive: After gathering sufficient information, take action or hand off. Don't overthink.\n\
+        14. Use PLAN command when you need to create a structured plan that should be visible to users and other agents.\n\n\
         Example:\n\
         THOUGHT: I should list the files to see the project structure.\n\
         CALL list_files {{ \"path\": \".\" }}",
@@ -238,7 +255,7 @@ pub async fn run_llm_agent(
 
             if line.is_empty() { continue; }
 
-            if line.starts_with("CALL ") || line.starts_with("HANDOFF ") || line.starts_with("SUCCESS ") || line.starts_with("ERROR ") || line == "SUCCESS" || line == "ERROR" {
+            if line.starts_with("CALL ") || line.starts_with("HANDOFF ") || line.starts_with("SUCCESS ") || line.starts_with("ERROR ") || line.starts_with("PLAN ") || line == "SUCCESS" || line == "ERROR" {
                 if line.contains('<') && line.contains('>') {
                     session_history.push("System: Error: Detected descriptive placeholders like '<...>' in your command. You MUST use actual filesystem paths or values.".to_string());
                     placeholder_error = true;
@@ -257,9 +274,14 @@ pub async fn run_llm_agent(
             let display_thought = if thought.len() > 200 {
                 format!("{}... (truncated)", &thought[..200])
             } else {
-                thought
+                thought.clone()
             };
             info!("Agent Thought: {}", display_thought);
+            
+            // Emit thought event
+            if let Some(broadcaster) = &context.event_broadcaster {
+                broadcaster.agent_thought(agent_name.clone(), thought).await;
+            }
         }
 
         if let Some(line) = cmd_line {
@@ -288,12 +310,25 @@ pub async fn run_llm_agent(
                             session_history.push(format!("System: Information: You already called '{}' with these exact arguments in this session and have the result above. Do NOT repeat the call. Instead, use the information you gained to take the next step (e.g., read a specific file, or HANDOFF if you have enough info).", tool_name));
                             continue;
                         }
-                        executed_tools.insert((tool_name.to_string(), input_json));
+                        executed_tools.insert((tool_name.to_string(), input_json.clone()));
 
-                        info!("Agent calling tool: {} with input: {}", tool_name, summarize_input(&input));
+                        let input_summary = summarize_input(&input);
+                        info!("Agent calling tool: {} with input: {}", tool_name, input_summary);
+                        
+                        // Emit tool call event
+                        if let Some(broadcaster) = &context.event_broadcaster {
+                            broadcaster.tool_call(agent_name.clone(), tool_name.to_string(), input_summary.clone()).await;
+                        }
+                        
                         match t.run(input).await {
                             Ok(res) => {
-                                info!("Tool '{}' completed: {}", tool_name, summarize_output(&res));
+                                let output_summary = summarize_output(&res);
+                                info!("Tool '{}' completed: {}", tool_name, output_summary);
+
+                                // Emit tool result event
+                                if let Some(broadcaster) = &context.event_broadcaster {
+                                    broadcaster.tool_result(agent_name.clone(), tool_name.to_string(), output_summary, true).await;
+                                }
 
                                 let res_str = res.to_string();
                                 let display_res = if res_str.len() > 2000 {
@@ -303,7 +338,13 @@ pub async fn run_llm_agent(
                                 };
                                 session_history.push(format!("System: Tool '{}' result: {}", tool_name, display_res))
                             },
-                            Err(e) => session_history.push(format!("System: Tool '{}' error: {}", tool_name, e)),
+                            Err(e) => {
+                                // Emit tool error event
+                                if let Some(broadcaster) = &context.event_broadcaster {
+                                    broadcaster.tool_result(agent_name.clone(), tool_name.to_string(), format!("Error: {}", e), false).await;
+                                }
+                                session_history.push(format!("System: Tool '{}' error: {}", tool_name, e))
+                            },
                         }
                     }
                     None => session_history.push(format!("System: Tool '{}' not found", tool_name)),
@@ -336,6 +377,20 @@ pub async fn run_llm_agent(
                     reason: parts[2].to_string(),
                     context: parts[3].to_string(),
                 });
+            } else if line.starts_with("PLAN") {
+                let plan = line.strip_prefix("PLAN ").unwrap_or("");
+                if !plan.is_empty() {
+                    info!("Agent created a plan");
+                    
+                    // Emit plan created event
+                    if let Some(broadcaster) = &context.event_broadcaster {
+                        broadcaster.plan_created(agent_name.clone(), plan.to_string()).await;
+                    }
+                    
+                    session_history.push(format!("System: Plan recorded. You can now proceed with execution or hand off to the appropriate agent."));
+                } else {
+                    session_history.push("System: PLAN command requires content. Use PLAN <your_markdown_plan>".to_string());
+                }
             } else if line.starts_with("SUCCESS") {
                 let result = line.strip_prefix("SUCCESS ").unwrap_or(&line);
                 return Ok(AgentOutput::Success(result.to_string()));
@@ -344,11 +399,13 @@ pub async fn run_llm_agent(
                 return Ok(AgentOutput::Error(err.to_string()));
             }
         } else if !placeholder_error {
-            session_history.push("System: Unknown command format. Please use CALL, HANDOFF, SUCCESS, or ERROR.".to_string());
+            session_history.push("System: Unknown command format. Please use CALL, HANDOFF, SUCCESS, ERROR, or PLAN.".to_string());
         }
 
         // Prevent infinite loops in one agent process
-        if session_history.len() > 20 {
+        // Increased from 20 to 30 for agents with tools to have more flexibility
+        let max_steps = if capabilities.is_empty() { 15 } else { 30 };
+        if session_history.len() > max_steps {
             return Ok(AgentOutput::Error("Agent exceeded maximum interaction steps".to_string()));
         }
     }
@@ -507,6 +564,8 @@ mod tests {
             project_metadata: None,
             handoff_count: HashMap::new(),
             context_files: vec![],
+            event_broadcaster: None,
+            task_summary: Arc::new(tokio::sync::RwLock::new(crate::events::TaskSummary::new())),
         };
 
         // Test case 1: Assistant prefix and numbering
