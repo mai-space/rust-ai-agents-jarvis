@@ -125,6 +125,23 @@ To resume this session later, use: --session-id 550e8400-e29b-41d4-a716-44665544
 
 Note: Session persistence requires database configuration. Without a database, sessions are not saved.
 
+### Using the GUI Mode
+Jarvis includes a modern web-based chat interface for a more intuitive experience:
+
+```bash
+jarvis --serve-gui
+```
+
+Then open your browser to http://localhost:3000
+
+The GUI provides:
+- **Intuitive Chat Interface**: Modern, OpenChat-inspired UI
+- **File Upload Support**: Drag and drop files for context
+- **Session Management**: Automatically managed conversations
+- **Real-time Updates**: See agent responses as they happen
+
+See [GUI Mode Documentation](docs/gui-mode.md) for detailed usage instructions.
+
 ## 🔌 Model Context Protocol (MCP) & IDE Integration
 
 Jarvis is designed to be highly extensible and integrated into professional development environments.

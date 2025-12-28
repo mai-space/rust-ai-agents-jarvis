@@ -88,6 +88,14 @@ struct Args {
     #[arg(long)]
     serve_mcp: bool,
 
+    /// Start GUI server (web-based chat interface)
+    #[arg(long)]
+    serve_gui: bool,
+
+    /// Port for GUI server
+    #[arg(long, default_value_t = 3000)]
+    gui_port: u16,
+
     /// Context files to provide to agents (comma-separated paths)
     #[arg(long, value_delimiter = ',')]
     context_files: Option<Vec<String>>,
@@ -193,23 +201,24 @@ async fn main() -> Result<()> {
 
     let config = Config::load().unwrap_or_default();
 
-    let ollama_host = args.ollama_host.unwrap_or(config.ollama_host);
+    let ollama_host = args.ollama_host.unwrap_or(config.ollama_host.clone());
     let ollama_port = args.ollama_port.unwrap_or(config.ollama_port);
-    let model = args.model.unwrap_or(config.model);
-    let database_url = args.database_url.or(config.database_url);
-    let mcp_config = args.mcp_config.or(config.mcp_config);
+    let model = args.model.unwrap_or(config.model.clone());
+    let database_url = args.database_url.or(config.database_url.clone());
+    let mcp_config = args.mcp_config.or(config.mcp_config.clone());
+    let model_config = config.model_config.clone();
 
     info!("Starting Jarvis AI Agent Squad...");
 
-    let llm = Arc::new(OllamaProvider::new(ollama_host, ollama_port, model));
+    let llm = Arc::new(OllamaProvider::new(ollama_host.clone(), ollama_port, model.clone()));
     
     let mut manager = Manager::new(3).with_hitl(Arc::new(CliHitl));
 
     let mut pg_provider_opt = None;
-    if let Some(db_url) = database_url {
+    if let Some(ref db_url) = database_url {
         let pool = PgPoolOptions::new()
             .max_connections(5)
-            .connect(&db_url).await?;
+            .connect(db_url).await?;
         
         let pg_provider = Arc::new(PostgresProvider::new(pool));
         pg_provider.setup().await?;
@@ -220,8 +229,8 @@ async fn main() -> Result<()> {
     }
 
     let mut mcp_tools = Vec::new();
-    if let Some(config_path) = mcp_config {
-        mcp_tools = load_mcp_tools(&config_path).await?;
+    if let Some(ref config_path) = mcp_config {
+        mcp_tools = load_mcp_tools(config_path).await?;
         info!("Loaded {} tools from MCP servers", mcp_tools.len());
     }
 
@@ -336,6 +345,20 @@ async fn main() -> Result<()> {
         
         let server = jarvis::mcp::McpServer::new(all_tools);
         server.run().await?;
+    } else if args.serve_gui {
+        info!("Starting GUI server on port {}...", args.gui_port);
+        
+        // Create a config with current settings for GUI
+        let gui_config = Config {
+            ollama_host,
+            ollama_port,
+            model,
+            model_config,
+            database_url,
+            mcp_config,
+        };
+        
+        jarvis::orchestration::gui::start_gui_server(manager, args.gui_port, gui_config).await?;
     } else if args.serve_acp {
         info!("Starting ACP server on port {}...", args.acp_port);
         jarvis::orchestration::acp::start_acp_server(manager, args.acp_port).await?;

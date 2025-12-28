@@ -1,0 +1,258 @@
+use crate::orchestration::Manager;
+use crate::config::Config;
+use axum::{
+    routing::{get, post},
+    Router, Json, extract::{State, Multipart},
+    response::{Html, sse::{Event, KeepAlive, Sse}},
+    http::StatusCode,
+};
+use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::{Mutex, mpsc};
+use std::collections::HashMap;
+use uuid::Uuid;
+use anyhow::Result;
+use futures::stream::Stream;
+use std::convert::Infallible;
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::StreamExt as _;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChatMessage {
+    pub id: String,
+    pub role: String,  // "user" or "assistant"
+    pub content: String,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatRequest {
+    pub message: String,
+    pub session_id: Option<String>,
+    pub context_files: Option<Vec<ContextFileData>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ContextFileData {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatResponse {
+    pub message_id: String,
+    pub session_id: String,
+    pub response: String,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionInfo {
+    pub session_id: String,
+    pub messages: Vec<ChatMessage>,
+}
+
+pub struct GuiState {
+    pub manager: Arc<Manager>,
+    pub sessions: Mutex<HashMap<String, Vec<ChatMessage>>>,
+    pub event_channels: Mutex<HashMap<String, mpsc::UnboundedSender<String>>>,
+    pub config: Mutex<Config>,
+}
+
+pub async fn start_gui_server(manager: Arc<Manager>, port: u16, config: Config) -> Result<()> {
+    let app = create_gui_app(manager, config);
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
+    tracing::info!("GUI server listening on http://0.0.0.0:{}", port);
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+pub fn create_gui_app(manager: Arc<Manager>, config: Config) -> Router {
+    let state = Arc::new(GuiState {
+        manager,
+        sessions: Mutex::new(HashMap::new()),
+        event_channels: Mutex::new(HashMap::new()),
+        config: Mutex::new(config),
+    });
+
+    Router::new()
+        .route("/", get(serve_index))
+        .route("/api/chat", post(handle_chat))
+        .route("/api/session/:session_id", get(get_session))
+        .route("/api/upload", post(handle_upload))
+        .route("/api/events/:session_id", get(handle_events))
+        .route("/api/settings", get(get_settings))
+        .route("/api/settings", post(update_settings))
+        .with_state(state)
+}
+
+async fn serve_index() -> Html<&'static str> {
+    Html(include_str!("../static/index.html"))
+}
+
+async fn handle_chat(
+    State(state): State<Arc<GuiState>>,
+    Json(request): Json<ChatRequest>,
+) -> Result<Json<ChatResponse>, (StatusCode, String)> {
+    let session_id = request.session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let message_id = Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().timestamp();
+
+    // Store user message
+    let user_msg = ChatMessage {
+        id: message_id.clone(),
+        role: "user".to_string(),
+        content: request.message.clone(),
+        timestamp,
+    };
+
+    {
+        let mut sessions = state.sessions.lock().await;
+        sessions.entry(session_id.clone())
+            .or_insert_with(Vec::new)
+            .push(user_msg);
+    }
+
+    // Convert context files to agent format
+    let context_files = request.context_files
+        .unwrap_or_default()
+        .into_iter()
+        .map(|cf| crate::agents::ContextFile {
+            path: cf.path,
+            content: cf.content,
+        })
+        .collect();
+
+    // Run manager
+    let result = state.manager
+        .run_with_session(
+            "ProductOwner",
+            request.message,
+            Some(session_id.clone()),
+            context_files,
+        )
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let response_text = result.0;
+    let response_timestamp = chrono::Utc::now().timestamp();
+
+    // Store assistant response
+    let assistant_msg = ChatMessage {
+        id: Uuid::new_v4().to_string(),
+        role: "assistant".to_string(),
+        content: response_text.clone(),
+        timestamp: response_timestamp,
+    };
+
+    {
+        let mut sessions = state.sessions.lock().await;
+        sessions.entry(session_id.clone())
+            .or_insert_with(Vec::new)
+            .push(assistant_msg);
+    }
+
+    Ok(Json(ChatResponse {
+        message_id: Uuid::new_v4().to_string(),
+        session_id: session_id.clone(),
+        response: response_text,
+        timestamp: response_timestamp,
+    }))
+}
+
+async fn get_session(
+    State(state): State<Arc<GuiState>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Result<Json<SessionInfo>, (StatusCode, String)> {
+    let sessions = state.sessions.lock().await;
+    let messages = sessions.get(&session_id)
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(Json(SessionInfo {
+        session_id,
+        messages,
+    }))
+}
+
+async fn handle_upload(
+    State(_state): State<Arc<GuiState>>,
+    multipart: Multipart,
+) -> Result<Json<Vec<ContextFileData>>, (StatusCode, String)> {
+    let mut files = Vec::new();
+    let mut multipart = multipart;
+
+    loop {
+        let field_result = multipart.next_field().await;
+        
+        match field_result {
+            Ok(Some(field)) => {
+                let name: String = match field.file_name() {
+                    Some(s) => s.to_string(),
+                    None => "unnamed".to_string(),
+                };
+                
+                let bytes_result = field.bytes().await;
+                let data: Bytes = match bytes_result {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
+                        return Err((StatusCode::BAD_REQUEST, format!("Failed to read bytes: {}", e)))
+                    },
+                };
+                
+                let content = String::from_utf8(data.to_vec())
+                    .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid UTF-8: {}", e)))?;
+
+                files.push(ContextFileData {
+                    path: name,
+                    content,
+                });
+            },
+            Ok(None) => break,
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Failed to get field: {}", e)))
+            },
+        }
+    }
+
+    Ok(Json(files))
+}
+
+async fn handle_events(
+    State(_state): State<Arc<GuiState>>,
+    axum::extract::Path(_session_id): axum::extract::Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let (tx, rx) = mpsc::unbounded_channel();
+    
+    // Send initial connected event
+    let _ = tx.send("connected".to_string());
+    
+    // Convert receiver to stream
+    let stream = UnboundedReceiverStream::new(rx);
+    let event_stream = stream.map(|msg| Ok(Event::default().data(msg)));
+
+    Sse::new(event_stream).keep_alive(KeepAlive::default())
+}
+
+async fn get_settings(
+    State(state): State<Arc<GuiState>>,
+) -> Json<Config> {
+    let config = state.config.lock().await;
+    Json(config.clone())
+}
+
+async fn update_settings(
+    State(state): State<Arc<GuiState>>,
+    Json(new_config): Json<Config>,
+) -> Result<Json<Config>, (StatusCode, String)> {
+    let mut config = state.config.lock().await;
+    *config = new_config.clone();
+    
+    // Save to disk
+    if let Err(e) = config.save() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save config: {}", e)));
+    }
+    
+    Ok(Json(new_config))
+}
