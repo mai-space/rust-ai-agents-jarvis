@@ -403,3 +403,76 @@ async fn test_gui_file_upload_with_preview() {
     assert_eq!(files[0]["content"], "Hello, this is test content!");
 }
 
+#[tokio::test]
+async fn test_gui_task_status_no_task() {
+    let config = Config::default();
+    let manager = Arc::new(Manager::new(3));
+    
+    let app = create_gui_app(manager, config);
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/task/status/test-session-123")
+                .body(Body::empty())
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(status["is_running"], false);
+    assert_eq!(status["session_id"], "test-session-123");
+}
+
+#[tokio::test]
+async fn test_gui_stop_task_not_found() {
+    let config = Config::default();
+    let manager = Arc::new(Manager::new(3));
+    
+    let app = create_gui_app(manager, config);
+    
+    // Try to stop a non-existent task
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/task/stop/nonexistent-session")
+                .body(Body::empty())
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    
+    // Should return NOT_FOUND
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_gui_html_contains_stop_restart_button() {
+    let config = Config::default();
+    let manager = Arc::new(Manager::new(3));
+    
+    let app = create_gui_app(manager, config);
+    
+    let response = app
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_str = String::from_utf8(body.to_vec()).unwrap();
+    
+    // Check for stop/restart button elements
+    assert!(body_str.contains("stopRestartButton"));
+    assert!(body_str.contains("handleStopRestart"));
+    assert!(body_str.contains("isTaskRunning"));
+}
+
+
