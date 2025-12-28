@@ -1,4 +1,5 @@
 use crate::orchestration::Manager;
+use crate::config::Config;
 use axum::{
     routing::{get, post},
     Router, Json, extract::{State, Multipart},
@@ -56,21 +57,23 @@ pub struct GuiState {
     pub manager: Arc<Manager>,
     pub sessions: Mutex<HashMap<String, Vec<ChatMessage>>>,
     pub event_channels: Mutex<HashMap<String, mpsc::UnboundedSender<String>>>,
+    pub config: Mutex<Config>,
 }
 
-pub async fn start_gui_server(manager: Arc<Manager>, port: u16) -> Result<()> {
-    let app = create_gui_app(manager);
+pub async fn start_gui_server(manager: Arc<Manager>, port: u16, config: Config) -> Result<()> {
+    let app = create_gui_app(manager, config);
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     tracing::info!("GUI server listening on http://0.0.0.0:{}", port);
     axum::serve(listener, app).await?;
     Ok(())
 }
 
-pub fn create_gui_app(manager: Arc<Manager>) -> Router {
+pub fn create_gui_app(manager: Arc<Manager>, config: Config) -> Router {
     let state = Arc::new(GuiState {
         manager,
         sessions: Mutex::new(HashMap::new()),
         event_channels: Mutex::new(HashMap::new()),
+        config: Mutex::new(config),
     });
 
     Router::new()
@@ -79,6 +82,8 @@ pub fn create_gui_app(manager: Arc<Manager>) -> Router {
         .route("/api/session/:session_id", get(get_session))
         .route("/api/upload", post(handle_upload))
         .route("/api/events/:session_id", get(handle_events))
+        .route("/api/settings", get(get_settings))
+        .route("/api/settings", post(update_settings))
         .with_state(state)
 }
 
@@ -228,4 +233,26 @@ async fn handle_events(
     let event_stream = stream.map(|msg| Ok(Event::default().data(msg)));
 
     Sse::new(event_stream).keep_alive(KeepAlive::default())
+}
+
+async fn get_settings(
+    State(state): State<Arc<GuiState>>,
+) -> Json<Config> {
+    let config = state.config.lock().await;
+    Json(config.clone())
+}
+
+async fn update_settings(
+    State(state): State<Arc<GuiState>>,
+    Json(new_config): Json<Config>,
+) -> Result<Json<Config>, (StatusCode, String)> {
+    let mut config = state.config.lock().await;
+    *config = new_config.clone();
+    
+    // Save to disk
+    if let Err(e) = config.save() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save config: {}", e)));
+    }
+    
+    Ok(Json(new_config))
 }

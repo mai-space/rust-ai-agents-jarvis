@@ -5,12 +5,36 @@ use anyhow::{Result, anyhow};
 use std::fs;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModelConfig {
+    /// Model to use for planning tasks (ProductOwner, RequirementsEngineer)
+    pub planning_model: String,
+    /// Model to use for code analysis tasks
+    pub analysis_model: String,
+    /// Model to use for development/coding tasks (SeniorDeveloper)
+    pub coding_model: String,
+    /// Model to use for documentation/writing tasks (Librarian)
+    pub writing_model: String,
+}
+
+impl Default for ModelConfig {
+    fn default() -> Self {
+        Self {
+            planning_model: "llama3".to_string(),
+            analysis_model: "llama3".to_string(),
+            coding_model: "llama3".to_string(),
+            writing_model: "llama3".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub ollama_host: String,
     pub ollama_port: u16,
-    pub model: String,
+    pub model: String,  // Default/fallback model
     pub database_url: Option<String>,
     pub mcp_config: Option<String>,
+    pub model_config: Option<ModelConfig>,
 }
 
 impl Default for Config {
@@ -21,6 +45,7 @@ impl Default for Config {
             model: "llama3".to_string(),
             database_url: None,
             mcp_config: None,
+            model_config: Some(ModelConfig::default()),
         }
     }
 }
@@ -66,6 +91,7 @@ mod tests {
             model: "llama3".to_string(),
             database_url: Some("postgres://...".to_string()),
             mcp_config: None,
+            model_config: Some(ModelConfig::default()),
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();

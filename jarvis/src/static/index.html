@@ -281,10 +281,161 @@
             cursor: pointer;
             font-size: 14px;
             transition: background 0.2s;
+            margin-left: 10px;
         }
 
         .new-chat-btn:hover {
             background: rgba(255, 255, 255, 0.3);
+        }
+
+        .settings-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .settings-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .settings-section {
+            margin-bottom: 25px;
+        }
+
+        .settings-section h3 {
+            font-size: 18px;
+            color: #374151;
+            margin-bottom: 15px;
+        }
+
+        .settings-section label {
+            display: block;
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .settings-section input,
+        .settings-section select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            margin-bottom: 15px;
+        }
+
+        .settings-section input:focus,
+        .settings-section select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .save-settings-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            width: 100%;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+
+        .save-settings-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .save-settings-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .success-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #15803d;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            animation: fadeIn 0.3s ease-in;
         }
     </style>
 </head>
@@ -295,7 +446,10 @@
                 <h1>🤖 Jarvis AI Agent Squad</h1>
                 <div class="session-id" id="sessionIdDisplay">New Session</div>
             </div>
-            <button class="new-chat-btn" onclick="startNewChat()">New Chat</button>
+            <div class="header-buttons">
+                <button class="settings-btn" onclick="openSettings()">⚙️ Settings</button>
+                <button class="new-chat-btn" onclick="startNewChat()">New Chat</button>
+            </div>
         </div>
         
         <div class="messages-container" id="messagesContainer">
@@ -330,9 +484,63 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="close-btn" onclick="closeSettings()">×</button>
+            </div>
+            
+            <div id="settingsSuccess" class="success-message" style="display: none;">
+                Settings saved successfully!
+            </div>
+            
+            <div class="settings-section">
+                <h3>Ollama Configuration</h3>
+                <label for="ollamaHost">Ollama Host</label>
+                <input type="text" id="ollamaHost" placeholder="localhost">
+                
+                <label for="ollamaPort">Ollama Port</label>
+                <input type="number" id="ollamaPort" placeholder="11434">
+                
+                <label for="defaultModel">Default Model</label>
+                <input type="text" id="defaultModel" placeholder="llama3">
+            </div>
+            
+            <div class="settings-section">
+                <h3>Task-Specific Models</h3>
+                <p style="font-size: 13px; color: #6b7280; margin-bottom: 15px;">
+                    Configure different models for different types of tasks to optimize performance and cost.
+                </p>
+                
+                <label for="planningModel">Planning Model (ProductOwner, RequirementsEngineer)</label>
+                <input type="text" id="planningModel" placeholder="llama3">
+                
+                <label for="analysisModel">Analysis Model (Code review, analysis tasks)</label>
+                <input type="text" id="analysisModel" placeholder="llama3">
+                
+                <label for="codingModel">Coding Model (SeniorDeveloper)</label>
+                <input type="text" id="codingModel" placeholder="llama3">
+                
+                <label for="writingModel">Writing Model (Documentation, Librarian)</label>
+                <input type="text" id="writingModel" placeholder="llama3">
+            </div>
+            
+            <div class="settings-section">
+                <h3>Database Configuration</h3>
+                <label for="databaseUrl">Database URL (Optional - for persistence)</label>
+                <input type="text" id="databaseUrl" placeholder="******localhost/jarvis">
+            </div>
+            
+            <button class="save-settings-btn" onclick="saveSettings()">Save Settings</button>
+        </div>
+    </div>
+
     <script>
         let sessionId = null;
         let attachedFiles = [];
+        let currentSettings = null;
 
         // Auto-resize textarea
         const textarea = document.getElementById('messageInput');
@@ -545,6 +753,95 @@
             document.getElementById('sessionIdDisplay').textContent = 'New Session';
             document.getElementById('messageInput').value = '';
         }
+
+        // Settings management
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                if (response.ok) {
+                    currentSettings = await response.json();
+                    populateSettings(currentSettings);
+                }
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        }
+
+        function populateSettings(settings) {
+            document.getElementById('ollamaHost').value = settings.ollama_host || 'localhost';
+            document.getElementById('ollamaPort').value = settings.ollama_port || 11434;
+            document.getElementById('defaultModel').value = settings.model || 'llama3';
+            document.getElementById('databaseUrl').value = settings.database_url || '';
+            
+            if (settings.model_config) {
+                document.getElementById('planningModel').value = settings.model_config.planning_model || 'llama3';
+                document.getElementById('analysisModel').value = settings.model_config.analysis_model || 'llama3';
+                document.getElementById('codingModel').value = settings.model_config.coding_model || 'llama3';
+                document.getElementById('writingModel').value = settings.model_config.writing_model || 'llama3';
+            }
+        }
+
+        function openSettings() {
+            loadSettings();
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+            document.getElementById('settingsSuccess').style.display = 'none';
+        }
+
+        async function saveSettings() {
+            const settings = {
+                ollama_host: document.getElementById('ollamaHost').value,
+                ollama_port: parseInt(document.getElementById('ollamaPort').value),
+                model: document.getElementById('defaultModel').value,
+                model_config: {
+                    planning_model: document.getElementById('planningModel').value,
+                    analysis_model: document.getElementById('analysisModel').value,
+                    coding_model: document.getElementById('codingModel').value,
+                    writing_model: document.getElementById('writingModel').value,
+                },
+                database_url: document.getElementById('databaseUrl').value || null,
+                mcp_config: currentSettings?.mcp_config || null
+            };
+
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to save settings: ${errorText}`);
+                }
+
+                currentSettings = await response.json();
+                document.getElementById('settingsSuccess').style.display = 'block';
+                
+                setTimeout(() => {
+                    document.getElementById('settingsSuccess').style.display = 'none';
+                }, 3000);
+            } catch (error) {
+                showError(`Failed to save settings: ${error.message}`);
+            }
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('settingsModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSettings();
+            }
+        });
+
+        // Load settings on page load
+        window.addEventListener('load', function() {
+            loadSettings();
+        });
     </script>
 </body>
 </html>
