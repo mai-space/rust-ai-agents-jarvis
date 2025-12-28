@@ -4,19 +4,45 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
 
 ## 🚀 Key Features
 
-- **Autonomous Squad:** A full pipeline of agents: Product Owner, Requirements Engineer, Senior Developer, Accessibility/SEO Experts, Security Expert, QA Tester, and Librarian.
-- **Long-Term Memory:** Integrated RAG (Retrieval-Augmented Generation) using PostgreSQL and `pgvector` to remember project patterns and codebases.
-- **Project Context Awareness:** Automatic project detection and differentiation with project-scoped memory to avoid confusion between different codebases.
-- **Intelligent Loop Prevention:** Advanced handoff validation and loop detection prevents agents from getting stuck in infinite cycles.
-- **Smart Caching:** Project structure caching reduces redundant filesystem scans by 10-50x, dramatically improving performance.
-- **Session Persistence:** State-based persistence allows you to stop and resume complex tasks using unique session IDs.
-- **Autonomous Tooling:** Agents can use Git, File System, Shell, and Code Analysis tools to implement features, run tests, and commit changes.
-- **Human-in-the-Loop (HITL):** Built-in escalation mechanism when agents reach retry limits, ensuring safety and control.
-- **Model Context Protocol (MCP):** Dynamic tool extension via external MCP servers (e.g., Brave Search, Google Maps).
-- **Agent Client Protocol (ACP):** Standardized API for IDE integration (JetBrains, VS Code).
-- **Personalized Memory:** Dual-stream RAG that distinguishes between technical project context and individual user preferences.
-- **Multi-backend LLM Support:** Primary support for Ollama (local LLMs), extensible via traits.
-- **Cross-Platform:** Native support and installers for Linux, macOS, and Windows.
+### Core Capabilities
+- **Autonomous Squad:** A complete pipeline of specialized agents working together:
+  - **Product Owner:** Scans codebase, understands project structure
+  - **Requirements Engineer:** Translates tasks into technical step-by-step plans
+  - **Senior Developer:** Implements features with clean, modular code
+  - **Accessibility Expert:** Ensures ARIA labels, contrast, semantic HTML
+  - **SEO Expert:** Validates meta tags, SSR compatibility, semantic headers
+  - **Security Expert:** Scans for SQL injection, XSS, and security vulnerabilities
+  - **QA Tester:** Writes and runs tests, validates feature completeness
+  - **Librarian:** Finalizes documentation and stores user preferences
+
+### Intelligence & Memory
+- **Long-Term Memory:** Integrated RAG (Retrieval-Augmented Generation) using PostgreSQL and `pgvector` to remember project patterns and codebases
+- **Project Context Awareness:** Automatic project detection and differentiation with project-scoped memory to avoid confusion between different codebases
+- **Personalized Memory:** Dual-stream RAG that distinguishes between technical project context and individual user preferences
+- **Smart Caching:** Project structure caching reduces redundant filesystem scans by 10-50x, dramatically improving performance
+
+### Reliability & Safety
+- **Intelligent Loop Prevention:** Advanced handoff validation and loop detection prevents agents from getting stuck in infinite cycles
+- **Session Persistence:** State-based persistence allows you to stop and resume complex tasks using unique session IDs
+- **Human-in-the-Loop (HITL):** Built-in escalation mechanism when agents reach retry limits, ensuring safety and control
+- **Metrics & Monitoring:** Built-in handoff tracking, success rate monitoring, and performance analytics
+
+### Developer Tools
+- **Autonomous Tooling:** Agents can use 17+ specialized tools:
+  - **File System:** `list_files`, `read_file`, `write_file`, `read_structure`, `apply_patch`, `search_codebase`
+  - **Git:** `read_diff`, `git_commit`, `git_checkout`
+  - **Shell:** `run_tests`, `static_analysis`
+  - **Analysis:** `analyze_dependencies`, `find_code_markers` (TODO/FIXME/HACK)
+  - **Memory:** `store_preference` for user preferences
+  - **Caching:** `cache_project_structure`, `get_cached_structure`
+  - **MCP Tools:** Dynamic tools from external MCP servers
+
+### Integration & Extensibility
+- **Model Context Protocol (MCP):** Dynamic tool extension via external MCP servers (e.g., Brave Search, Google Maps)
+- **Agent Client Protocol (ACP):** Standardized API for IDE integration (JetBrains, VS Code)
+- **Multi-backend LLM Support:** Primary support for Ollama (local LLMs), extensible via traits
+- **GUI Mode:** Modern web-based chat interface for intuitive interaction
+- **Cross-Platform:** Native support and installers for Linux, macOS, and Windows
 
 ## 🛠 Prerequisites
 
@@ -91,6 +117,7 @@ chmod +x scripts/install_macos.sh
 
 ## 📖 Tutorial: Running Your First Task
 
+### Basic Usage
 To start a new task with Jarvis:
 
 ```bash
@@ -105,6 +132,8 @@ jarvis --task "Refactor the authentication logic" --context-files src/auth.rs,sr
 ```
 
 The context files will be read and included in the agent's prompt, providing immediate access to relevant code without requiring the agent to search for files. Multiple files can be specified using comma-separated paths.
+
+For more details, see [Context Files Documentation](docs/context-files.md).
 
 ### Resuming a Session
 Jarvis automatically generates and displays a session ID when you run a task with persistence enabled (database configured). You can use this session ID to resume work later:
@@ -136,9 +165,15 @@ Then open your browser to http://localhost:3000
 
 The GUI provides:
 - **Intuitive Chat Interface**: Modern, OpenChat-inspired UI
-- **File Upload Support**: Drag and drop files for context
-- **Session Management**: Automatically managed conversations
+- **File Upload Support**: Drag and drop files or click to attach files for context
+- **Session Management**: Automatically managed conversations with session IDs
 - **Real-time Updates**: See agent responses as they happen
+- **Supported File Types**: Source code (.rs, .js, .ts, .py, .java, .go, etc.), configs (.json, .yaml, .toml), documentation (.md, .html)
+
+You can customize the port:
+```bash
+jarvis --serve-gui --gui-port 8080
+```
 
 See [GUI Mode Documentation](docs/gui-mode.md) for detailed usage instructions.
 
@@ -168,7 +203,66 @@ You can also let other AI assistants (like JetBrains AI) use Jarvis's specialize
 jarvis --serve-mcp
 ```
 
+## 📊 Metrics & Monitoring
+
+Jarvis includes built-in metrics to track agent performance and identify issues:
+
+- **Handoff Tracking:** Monitor all agent transitions and handoff patterns
+- **Success Rate:** Track successful task completions vs. failures
+- **Loop Detection:** Identify and prevent circular agent handoffs
+- **Chain Length Analysis:** Measure average and maximum agent chain lengths
+- **Performance Analytics:** Export metrics as JSON for external analysis
+
+Example metrics output:
+```
+=== Agent Handoff Metrics ===
+Total Handoffs: 5
+Successful Completions: 1
+Success Rate: 100.0%
+Average Chain Length: 6.0
+Loop Incidents: 0
+
+Top Handoff Pairs:
+  ProductOwner -> RequirementsEngineer: 1 times
+  RequirementsEngineer -> SeniorDeveloper: 1 times
+```
+
 ## 🏗 Extending Jarvis
+
+### Available Built-in Tools
+
+Jarvis comes with 17+ specialized tools organized by category:
+
+**File System Tools:**
+- `list_files` - List files in a directory
+- `read_file` - Read file contents
+- `write_file` - Write content to files
+- `read_structure` - Recursively scan project structure
+- `apply_patch` - Apply unified diff patches
+- `search_codebase` - Search code using embeddings
+
+**Git Tools:**
+- `read_diff` - Read Git diffs
+- `git_commit` - Commit changes
+- `git_checkout` - Checkout branches
+
+**Shell Tools:**
+- `run_tests` - Execute test commands
+- `static_analysis` - Run static analysis tools
+
+**Analysis Tools:**
+- `analyze_dependencies` - Analyze code imports (Rust, JS/TS, Python)
+- `find_code_markers` - Find TODO, FIXME, HACK, NOTE markers
+
+**Cache Tools:**
+- `cache_project_structure` - Cache project structure for speed
+- `get_cached_structure` - Retrieve cached structure (10-50x faster)
+
+**Memory Tools:**
+- `store_preference` - Store user preferences
+
+**MCP Tools:**
+- Dynamic tools from external MCP servers
 
 ### Adding a New Tool
 Implement the `Tool` trait to add custom capabilities:
@@ -199,31 +293,63 @@ pub struct MyAgent;
 
 #[async_trait]
 impl Agent for MyAgent {
-    fn identity(&self) -> String { "You are a specialized agent..." .to_string() }
-    fn capabilities(&self) -> Vec<Arc<dyn Tool>> { vec![...] }
+    fn identity(&self) -> String { 
+        "You are a specialized agent...".to_string() 
+    }
+    fn capabilities(&self) -> Vec<Arc<dyn Tool>> { 
+        vec![/* your tools */] 
+    }
     async fn process(&self, context: &mut AgentContext) -> anyhow::Result<AgentOutput> {
         // Use jarvis::agents::run_llm_agent or custom logic
+        run_llm_agent(self, llm_provider, context).await
     }
 }
 ```
 
 ## 🧪 Testing Status
 
-We maintain a suite of integration tests to ensure squad reliability and memory consistency.
+We maintain a comprehensive suite of tests to ensure squad reliability, memory consistency, and tool functionality.
 
-| Test Suite | Description | Status |
-| :--- | :--- | :--- |
-| `integration_test.rs` | Verifies basic agent handoffs and tool calling. | ✅ Passing |
-| `phase7_test.rs` | Verifies Vector DB integration, RAG logic, and session persistence. | ✅ Passing |
-| `phase8_test.rs` | Verifies Dual-Stream RAG and user preference extraction. | ✅ Passing |
+**Test Results:**
+- **Total Tests:** 32
+- **Status:** ✅ All Passing
+- **Coverage:** Core agents, tools, providers, project context, and metrics
 
-*Note: Unit tests for individual tools are currently in development.*
+| Test Category | Description | Tests | Status |
+| :--- | :--- | :--- | :--- |
+| **Agent Tests** | Verifies agent handoffs, parsing, and I/O sanitization | 4 | ✅ Passing |
+| **Tool Tests** | Validates all file system, Git, shell, analysis, and cache tools | 15 | ✅ Passing |
+| **Provider Tests** | Verifies LLM and Vector DB integration | 1 | ✅ Passing |
+| **Project Context** | Validates project detection and structure caching | 3 | ✅ Passing |
+| **Metrics** | Tests handoff tracking and performance analytics | 5 | ✅ Passing |
+| **Config** | Validates configuration persistence | 2 | ✅ Passing |
+| **Memory** | Tests preference storage and retrieval | 2 | ✅ Passing |
+
+Run tests with:
+```bash
+cargo test
+```
 
 ## 🛣 Roadmap
 
-The project has successfully completed its initial roadmap. See [plan.md](plan.md) for full details on each completed phase.
+The project has successfully completed its initial roadmap through Phase 11. See [plan.md](plan.md) for full details on each completed phase.
 
-- [x] Phase 1-7: Core infrastructure, agents, and memory.
-- [x] Phase 8: Personalized Memory & Context Awareness.
-- [x] Phase 9: Distribution & Cross-Platform Support.
-- [x] Phase 10: Extensibility & IDE Integration (MCP/ACP).
+**Completed Phases:**
+- ✅ Phase 1-7: Core infrastructure, agents, and memory
+- ✅ Phase 8: Personalized Memory & Context Awareness
+- ✅ Phase 9: Distribution & Cross-Platform Support
+- ✅ Phase 10: Extensibility & IDE Integration (MCP/ACP)
+- ✅ Phase 11: CLI Empowerment & Global Usage
+
+**Key Achievements:**
+- 8 specialized agents working in harmony
+- 17+ autonomous tools for code manipulation
+- Project-scoped vector database for context isolation
+- Smart caching system for 10-50x performance improvement
+- Loop detection and prevention mechanisms
+- GUI mode for intuitive interaction
+- MCP/ACP integration for extensibility
+- Cross-platform support (Linux, macOS, Windows)
+- Comprehensive testing suite with 32 passing tests
+
+For detailed implementation notes, see [SUMMARY.md](SUMMARY.md) and [IMPROVEMENTS.md](IMPROVEMENTS.md).

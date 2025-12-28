@@ -2,7 +2,12 @@
 
 ## Overview
 
-The context files feature allows you to pass specific files directly to agents, providing them with immediate access to relevant code without requiring them to search the filesystem. This significantly speeds up agent processing and improves accuracy.
+The context files feature allows you to pass specific files directly to agents, providing them with immediate access to relevant code without requiring them to search the filesystem. This significantly speeds up agent processing and improves accuracy by giving agents the exact context they need.
+
+Context files can be provided via:
+- CLI: `--context-files` flag with comma-separated paths
+- GUI: File upload via drag-and-drop or file picker
+- API: `context_files` array in POST requests
 
 ## Usage
 
@@ -93,9 +98,29 @@ manager.run_with_session(
 ).await?;
 ```
 
+## GUI Mode Usage
+
+In GUI mode, context files can be easily managed through the web interface:
+
+1. **Attach Files**: Click the 📎 (paperclip) icon in the input area
+2. **Select Files**: Choose one or more files from your file system
+3. **Supported Types**: 
+   - Source code: `.rs`, `.js`, `.ts`, `.tsx`, `.jsx`, `.py`, `.java`, `.go`, `.cpp`, `.c`, `.h`, `.hpp`, `.php`, `.rb`, `.swift`, `.kt`
+   - Scripts: `.sh`, `.bash`, `.zsh`, `.fish`
+   - Config: `.json`, `.yaml`, `.yml`, `.toml`, `.ini`, `.xml`, `.conf`
+   - Documentation: `.md`, `.txt`, `.rst`, `.html`, `.css`, `.scss`
+   - Other: `.sql`, `.graphql`, `.proto`, `.dockerfile`
+4. **Visual Indicators**: Attached files appear as chips above the input box
+5. **Remove Files**: Click the × button on any file chip to remove it
+6. **Send Message**: Files are automatically included with your message
+
+The GUI validates file types client-side and shows friendly error messages for unsupported formats.
+
 ## Tips
 
-1. **Focus on Relevant Files**: Only include files that are directly relevant to the task
-2. **File Size Considerations**: Be mindful of large files as they consume prompt space
-3. **Relative Paths**: Use paths relative to the project root for consistency
-4. **Update Context**: If files change during development, restart with updated context files
+1. **Focus on Relevant Files**: Only include files that are directly relevant to the task to avoid overwhelming the context window
+2. **File Size Considerations**: Be mindful of large files as they consume prompt space. The total context should stay within model limits
+3. **Relative or Absolute Paths**: Both work, but relative paths from project root are recommended for consistency
+4. **Update Context**: If files change during development, restart with updated context files or provide new files via GUI
+5. **Combine with RAG**: Context files work alongside the vector database RAG system for maximum effectiveness
+6. **GUI Advantage**: The GUI mode makes it easy to add/remove context files dynamically during a conversation
