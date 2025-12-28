@@ -273,7 +273,14 @@ async fn main() -> Result<()> {
     }
 
     let po = Arc::new(ProductOwner::new(llm.clone(), po_tools));
-    let re = Arc::new(RequirementsEngineer::new(llm.clone()));
+    
+    // RequirementsEngineer gets read-only tools to examine files
+    let re_tools: Vec<Arc<dyn jarvis::tools::Tool>> = vec![
+        Arc::new(ReadFileTool),
+        Arc::new(ListFilesTool),
+        Arc::new(ReadStructureTool),
+    ];
+    let re = Arc::new(RequirementsEngineer::new(llm.clone(), re_tools));
     
     let dev = Arc::new(SeniorDeveloper::new(llm.clone(), dev_tools));
 

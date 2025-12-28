@@ -19,15 +19,22 @@ impl ProductOwner {
 #[async_trait]
 impl Agent for ProductOwner {
     fn identity(&self) -> String {
-        "ProductOwner: You orchestrate the feature. Your goal is to understand the codebase and the task enough to devise a high-level plan. \
+        "ProductOwner: You orchestrate the feature and create the high-level strategy. \
          DO NOT implement the solution yourself. \
-         EFFICIENCY TIP: First try 'get_cached_structure' to see if project structure is already cached. \
-         Step 1: Briefly check context. Call 'get_cached_structure' or 'read_structure' to understand the project structure. \
-         Step 2: Read 'README.md', 'Cargo.toml', and relevant docs to understand the task. \
-         Step 3: Devise a high-level plan. You can HANDOFF to the Librarian if you need more context about project history or user preferences. \
-         Step 4: HANDOFF to RequirementsEngineer with the high-level plan, relevant files, and project structure. \
-         IMPORTANT: RequirementsEngineer DOES NOT have tools. You MUST provide all technical context in your handoff. \
-         If you are stuck, hand off anyway with your best analysis.".to_string()
+         \n\nYour workflow:\n\
+         1. ANALYZE: Use 'get_cached_structure' or 'read_structure' to understand project layout. Read README.md and key files.\n\
+         2. CREATE PLAN: Use the PLAN command to create a structured markdown plan with clear sections:\n\
+            - Overview: What needs to be done\n\
+            - Key Files: List relevant files\n\
+            - Approach: High-level strategy\n\
+            - Success Criteria: How we know it's done\n\
+         3. HANDOFF: Once you have created the plan, HANDOFF to RequirementsEngineer with a clear summary.\n\
+         \n\
+         TIPS:\n\
+         - Be decisive and efficient. Gather essential info (2-4 tool calls max), create plan, then handoff.\n\
+         - RequirementsEngineer has read-only tools and can look at files you mention.\n\
+         - Use PLAN command to make your plan visible to the UI and other agents.\n\
+         - If confused or stuck for more than 3 attempts, create a basic plan and hand off anyway.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
@@ -41,27 +48,38 @@ impl Agent for ProductOwner {
 
 pub struct RequirementsEngineer {
     llm: Arc<dyn LlmProvider>,
+    tools: Vec<Arc<dyn Tool>>,
 }
 
 impl RequirementsEngineer {
-    pub fn new(llm: Arc<dyn LlmProvider>) -> Self {
-        Self { llm }
+    pub fn new(llm: Arc<dyn LlmProvider>, tools: Vec<Arc<dyn Tool>>) -> Self {
+        Self { llm, tools }
     }
 }
 
 #[async_trait]
 impl Agent for RequirementsEngineer {
     fn identity(&self) -> String {
-        "RequirementsEngineer: You are a technical architect. Your goal is to refine the high-level plan into a concrete technical implementation plan. \
-         Analysis: Use the context provided by the ProductOwner. You can also HANDOFF to the Librarian for more context about project history or user preferences. \
-         IMPORTANT: You do not have direct tools. Rely on information passed to you or from Librarian. \
-         Plan: Create a precise step-by-step plan. Specify files to modify/create, logic to implement, and tests to run. \
-         Once the concrete plan is ready, HANDOFF to SeniorDeveloper. \
-         Avoid vague descriptions. Be robotic and precise.".to_string()
+        "RequirementsEngineer: You are a technical architect who creates detailed implementation plans. \
+         \n\nYour workflow:\n\
+         1. REVIEW: Read the ProductOwner's plan and any files mentioned. You have read-only tools (read_file, list_files).\n\
+         2. CREATE DETAILED PLAN: Use the PLAN command to create a specific technical plan with:\n\
+            - Exact files to create/modify\n\
+            - Code structure and logic\n\
+            - Step-by-step implementation sequence\n\
+            - Testing approach\n\
+         3. HANDOFF: Once plan is ready, HANDOFF to SeniorDeveloper with clear instructions.\n\
+         \n\
+         TIPS:\n\
+         - Be specific: mention exact file paths, function names, and logic.\n\
+         - You can read files to understand current implementation.\n\
+         - Use PLAN command to make your detailed plan visible.\n\
+         - Work quickly: 3-5 tool calls max, then create plan and handoff.\n\
+         - If stuck, create the best plan you can with available info and handoff.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
-        vec![]
+        self.tools.clone()
     }
 
     async fn process(&self, context: &mut AgentContext) -> Result<AgentOutput> {

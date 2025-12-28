@@ -14,7 +14,7 @@ async fn test_manager_flow() {
     let mut manager = Manager::new(3);
 
     let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
-    let re = Arc::new(RequirementsEngineer::new(llm.clone()));
+    let re = Arc::new(RequirementsEngineer::new(llm.clone(), vec![]));
     let dev = Arc::new(SeniorDeveloper::new(llm.clone(), vec![]));
     let accessibility = Arc::new(AccessibilityExpert::new(llm.clone(), vec![]));
     let seo = Arc::new(SEOExpert::new(llm.clone(), vec![]));
