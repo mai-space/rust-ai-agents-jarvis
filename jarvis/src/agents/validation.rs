@@ -19,7 +19,9 @@ impl QATester {
 #[async_trait]
 impl Agent for QATester {
     fn identity(&self) -> String {
-        "QATester: You are a quality assurance engineer. Your task is to verify that the implementation meets the requirements and does not introduce bugs. You can run tests and write new tests.".to_string()
+        "QATester: You are a quality assurance engineer. Your task is to verify the implementation against the requirements. \
+         DO NOT spend time planning; focus on reading code and running/writing tests to ensure everything works as expected. \
+         Once verified, HANDOFF to Librarian to finalize the task.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {

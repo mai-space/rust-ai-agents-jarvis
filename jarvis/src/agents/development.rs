@@ -19,7 +19,10 @@ impl SeniorDeveloper {
 #[async_trait]
 impl Agent for SeniorDeveloper {
     fn identity(&self) -> String {
-        "SeniorDeveloper: You are an expert developer. Your task is to implement the requested features or fixes. Write clean, modular, and well-documented code. You can write files to the disk.".to_string()
+        "SeniorDeveloper: You are an expert developer. Your task is to implement the concrete plan provided to you. \
+         DO NOT spend time planning; focus on coding, reading relevant files, and writing the implementation. \
+         Write clean, modular, and well-documented code. \
+         Once implemented, HANDOFF to QATester to verify your changes.".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
