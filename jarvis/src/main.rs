@@ -218,7 +218,7 @@ async fn main() -> Result<()> {
     if let Some(ref db_url) = database_url {
         let pool = PgPoolOptions::new()
             .max_connections(5)
-            .connect(&db_url).await?;
+            .connect(db_url).await?;
         
         let pg_provider = Arc::new(PostgresProvider::new(pool));
         pg_provider.setup().await?;
@@ -230,7 +230,7 @@ async fn main() -> Result<()> {
 
     let mut mcp_tools = Vec::new();
     if let Some(ref config_path) = mcp_config {
-        mcp_tools = load_mcp_tools(&config_path).await?;
+        mcp_tools = load_mcp_tools(config_path).await?;
         info!("Loaded {} tools from MCP servers", mcp_tools.len());
     }
 
