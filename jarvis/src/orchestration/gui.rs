@@ -60,6 +60,7 @@ pub struct GuiState {
     pub event_channels: Mutex<HashMap<String, mpsc::UnboundedSender<String>>>,
     pub config: Mutex<Config>,
     pub config_path: Option<std::path::PathBuf>,
+    pub task_handles: Mutex<HashMap<String, tokio::task::AbortHandle>>,
 }
 
 pub async fn start_gui_server(manager: Arc<Manager>, port: u16, config: Config) -> Result<()> {
@@ -82,6 +83,7 @@ pub fn create_gui_app_with_path(manager: Arc<Manager>, config: Config, config_pa
         event_channels: Mutex::new(HashMap::new()),
         config: Mutex::new(config),
         config_path,
+        task_handles: Mutex::new(HashMap::new()),
     });
 
     Router::new()
@@ -93,6 +95,8 @@ pub fn create_gui_app_with_path(manager: Arc<Manager>, config: Config, config_pa
         .route("/api/events/:session_id", get(handle_events))
         .route("/api/settings", get(get_settings))
         .route("/api/settings", post(update_settings))
+        .route("/api/task/stop/:session_id", post(stop_task))
+        .route("/api/task/status/:session_id", get(get_task_status))
         .with_state(state)
 }
 
@@ -209,9 +213,10 @@ async fn handle_chat_stream(
     let state_clone = Arc::clone(&state);
     let agent_name = request.agent.unwrap_or_else(|| "ProductOwner".to_string());
     let message = request.message.clone();
+    let session_id_clone = session_id.clone();
 
     // Spawn background task to run agent and stream events
-    tokio::spawn(async move {
+    let task_handle = tokio::spawn(async move {
         // Send session ID first
         let _ = tx.send(format!("session:{}", session_id));
         
@@ -291,10 +296,22 @@ async fn handle_chat_stream(
             }
         }
         
+        // Clean up task handle
+        {
+            let mut handles = state_clone.task_handles.lock().await;
+            handles.remove(&session_id);
+        }
+        
         // Give event task a moment to process any remaining events, then abort
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         event_handle.abort();
     });
+    
+    // Store the task handle
+    {
+        let mut handles = state.task_handles.lock().await;
+        handles.insert(session_id_clone, task_handle.abort_handle());
+    }
 
     // Convert receiver to stream
     let stream = UnboundedReceiverStream::new(rx);
@@ -399,4 +416,41 @@ async fn update_settings(
     }
     
     Ok(Json(new_config))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TaskStatusResponse {
+    pub is_running: bool,
+    pub session_id: String,
+}
+
+async fn stop_task(
+    State(state): State<Arc<GuiState>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Result<Json<TaskStatusResponse>, (StatusCode, String)> {
+    let mut handles = state.task_handles.lock().await;
+    
+    if let Some(handle) = handles.remove(&session_id) {
+        handle.abort();
+        tracing::info!("Task stopped for session: {}", session_id);
+        Ok(Json(TaskStatusResponse {
+            is_running: false,
+            session_id,
+        }))
+    } else {
+        Err((StatusCode::NOT_FOUND, format!("No running task found for session: {}", session_id)))
+    }
+}
+
+async fn get_task_status(
+    State(state): State<Arc<GuiState>>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Json<TaskStatusResponse> {
+    let handles = state.task_handles.lock().await;
+    let is_running = handles.contains_key(&session_id);
+    
+    Json(TaskStatusResponse {
+        is_running,
+        session_id,
+    })
 }
