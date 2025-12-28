@@ -311,9 +311,9 @@ impl Agent for MyAgent {
 We maintain a comprehensive suite of tests to ensure squad reliability, memory consistency, and tool functionality.
 
 **Test Results:**
-- **Total Tests:** 32
+- **Total Tests:** 56
 - **Status:** ✅ All Passing
-- **Coverage:** Core agents, tools, providers, project context, and metrics
+- **Coverage:** Core agents, tools, providers, project context, metrics, and GUI integration
 
 | Test Category | Description | Tests | Status |
 | :--- | :--- | :--- | :--- |
@@ -324,11 +324,37 @@ We maintain a comprehensive suite of tests to ensure squad reliability, memory c
 | **Metrics** | Tests handoff tracking and performance analytics | 5 | ✅ Passing |
 | **Config** | Validates configuration persistence | 2 | ✅ Passing |
 | **Memory** | Tests preference storage and retrieval | 2 | ✅ Passing |
+| **GUI Integration** | Tests web interface, API endpoints, and file uploads | 13 | ✅ Passing |
+| **Integration Tests** | End-to-end agent workflow and session management | 11 | ✅ Passing |
 
 Run tests with:
 ```bash
 cargo test
 ```
+
+### Important Testing Notes
+
+When writing tests that involve the agent squad:
+
+**⚠️ Register the complete agent chain:** The `MockLlm` expects all agents in the handoff chain to be registered. For example, if testing `ProductOwner`, you must also register `RequirementsEngineer`, `SeniorDeveloper`, and all subsequent agents that may be involved in the handoff sequence.
+
+**Example:**
+```rust
+let llm = Arc::new(MockLlm);
+let mut manager = Manager::new(3);
+
+// Register ALL agents in the chain
+let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
+let re = Arc::new(RequirementsEngineer::new(llm.clone(), vec![]));
+let dev = Arc::new(SeniorDeveloper::new(llm.clone(), vec![]));
+// ... register remaining agents
+
+manager.register_agent("ProductOwner".to_string(), po);
+manager.register_agent("RequirementsEngineer".to_string(), re);
+// ... register all others
+```
+
+This ensures the complete agent workflow can execute without hanging. See `jarvis/tests/gui_test.rs` for the `register_all_agents` helper function.
 
 ## 🛣 Roadmap
 
