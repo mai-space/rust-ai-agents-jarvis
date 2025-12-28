@@ -88,6 +88,10 @@ struct Args {
     #[arg(long)]
     serve_mcp: bool,
 
+    /// Context files to provide to agents (comma-separated paths)
+    #[arg(long, value_delimiter = ',')]
+    context_files: Option<Vec<String>>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -336,8 +340,35 @@ async fn main() -> Result<()> {
         info!("Starting ACP server on port {}...", args.acp_port);
         jarvis::orchestration::acp::start_acp_server(manager, args.acp_port).await?;
     } else if let Some(task) = args.task {
-        let result = manager.run_with_session("ProductOwner", task, args.session_id).await?;
+        // Load context files if provided
+        let mut context_files = Vec::new();
+        if let Some(file_paths) = args.context_files {
+            for path in file_paths {
+                info!("Loading context file: {}", path);
+                match std::fs::read_to_string(&path) {
+                    Ok(content) => {
+                        context_files.push(jarvis::agents::ContextFile {
+                            path: path.clone(),
+                            content,
+                        });
+                        info!("Successfully loaded context file: {}", path);
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to read context file '{}': {}", path, e);
+                    }
+                }
+            }
+        }
+        
+        let (result, session_id) = manager.run_with_session("ProductOwner", task, args.session_id, context_files).await?;
         println!("\n--- FINAL RESULT ---\n{}", result);
+        
+        // Display session ID if available
+        if let Some(sid) = session_id {
+            println!("\n--- SESSION INFO ---");
+            println!("Session ID: {}", sid);
+            println!("To resume this session later, use: --session-id {}", sid);
+        }
         
         // Print metrics summary
         println!("\n{}", manager.get_metrics_summary());

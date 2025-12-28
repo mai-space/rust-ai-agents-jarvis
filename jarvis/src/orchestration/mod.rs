@@ -1,6 +1,6 @@
 pub mod acp;
 
-use crate::agents::{Agent, AgentContext, AgentOutput};
+use crate::agents::{Agent, AgentContext, AgentOutput, ContextFile};
 use crate::providers::{VectorDbProvider, PersistenceProvider};
 use crate::project_context::ProjectContextManager;
 use crate::metrics::HandoffMetrics;
@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn, error};
 use serde_json::json;
+use uuid::Uuid;
 
 pub trait HumanInTheLoop: Send + Sync {
     fn consult(&self, agent_name: &str, task: &str, history: &[String]) -> Result<String>;
@@ -73,11 +74,26 @@ impl Manager {
     }
 
     pub async fn run(&self, initial_agent: &str, task: String) -> Result<String> {
-        self.run_with_session(initial_agent, task, None).await
+        let (result, _session_id) = self.run_with_session(initial_agent, task, None, Vec::new()).await?;
+        Ok(result)
     }
 
-    pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>) -> Result<String> {
+    pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>, context_files: Vec<ContextFile>) -> Result<(String, Option<String>)> {
         let mut current_agent_name = initial_agent.to_string();
+        
+        // Generate session ID if persistence is enabled and no ID provided
+        let effective_session_id = if self.persistence.is_some() {
+            Some(session_id.unwrap_or_else(|| Uuid::new_v4().to_string()))
+        } else {
+            session_id
+        };
+        
+        // Log session info
+        if let Some(ref sid) = effective_session_id {
+            if self.persistence.is_some() {
+                info!("Manager: Session ID: {}", sid);
+            }
+        }
         
         // Initialize project context
         let mut project_ctx_manager = ProjectContextManager::new();
@@ -89,7 +105,7 @@ impl Manager {
             info!("Manager: Project ID: {}", meta.project_id);
         }
         
-        let mut context = if let (Some(persistence), Some(sid)) = (&self.persistence, &session_id) {
+        let mut context = if let (Some(persistence), Some(sid)) = (&self.persistence, &effective_session_id) {
             if let Some(state) = persistence.load_state(sid).await? {
                 info!("Manager: Resuming session '{}'", sid);
                 AgentContext {
@@ -101,6 +117,7 @@ impl Manager {
                     available_agents: self.agents.keys().cloned().collect(),
                     project_metadata: project_metadata.clone(),
                     handoff_count: HashMap::new(),
+                    context_files: context_files.clone(),
                 }
             } else {
                 AgentContext {
@@ -110,6 +127,7 @@ impl Manager {
                     available_agents: self.agents.keys().cloned().collect(),
                     project_metadata: project_metadata.clone(),
                     handoff_count: HashMap::new(),
+                    context_files: context_files.clone(),
                 }
             }
         } else {
@@ -120,6 +138,7 @@ impl Manager {
                 available_agents: self.agents.keys().cloned().collect(),
                 project_metadata: project_metadata.clone(),
                 handoff_count: HashMap::new(),
+                context_files,
             }
         };
 
@@ -127,7 +146,7 @@ impl Manager {
         let mut agent_call_sequence: Vec<String> = Vec::new();
 
         loop {
-            if let (Some(persistence), Some(sid)) = (&self.persistence, &session_id) {
+            if let (Some(persistence), Some(sid)) = (&self.persistence, &effective_session_id) {
                 persistence.save_state(sid, json!({
                     "task": context.task,
                     "history": context.history,
@@ -197,7 +216,7 @@ impl Manager {
                     if let Ok(mut metrics) = self.metrics.lock() {
                         metrics.record_success(agent_call_sequence.len());
                     }
-                    return Ok(result);
+                    return Ok((result, effective_session_id));
                 }
                 AgentOutput::Handoff { target, reason, context: new_context } => {
                     info!("Manager: Handoff from '{}' to '{}'. Reason: {}", current_agent_name, target, reason);

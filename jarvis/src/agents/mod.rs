@@ -22,6 +22,13 @@ pub struct AgentContext {
     pub available_agents: Vec<String>,
     pub project_metadata: Option<ProjectMetadata>,
     pub handoff_count: std::collections::HashMap<String, usize>,
+    pub context_files: Vec<ContextFile>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContextFile {
+    pub path: String,
+    pub content: String,
 }
 
 #[async_trait]
@@ -141,6 +148,19 @@ pub async fn run_llm_agent(
                     full_prompt.push_str(&format!("{}. [{}] {}\n", i + 1, source, display_res));
                 }
             }
+        }
+
+        // Add context files if provided
+        if !context.context_files.is_empty() {
+            full_prompt.push_str("\n\n=== CONTEXT FILES ===\n");
+            full_prompt.push_str("The following files have been provided as context for this task:\n\n");
+            for context_file in &context.context_files {
+                full_prompt.push_str(&format!("File: {}\n", context_file.path));
+                full_prompt.push_str("```\n");
+                full_prompt.push_str(&context_file.content);
+                full_prompt.push_str("\n```\n\n");
+            }
+            full_prompt.push_str("======================\n");
         }
 
         full_prompt.push_str(&format!("\n\nTask: {}\n", context.task));
@@ -486,6 +506,7 @@ mod tests {
             available_agents: vec!["test".to_string()],
             project_metadata: None,
             handoff_count: HashMap::new(),
+            context_files: vec![],
         };
 
         // Test case 1: Assistant prefix and numbering
