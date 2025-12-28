@@ -208,17 +208,25 @@ jarvis --serve-gui --gui-port 8080
 
 The GUI mode consists of:
 
-1. **Backend Server** (`src/orchestration/gui.rs`):
-   - Axum web server
-   - REST API endpoints
+1. **Backend Server** (`jarvis/src/orchestration/gui.rs`):
+   - Axum web server with CORS support
+   - REST API endpoints for chat and file upload
    - Integration with the Manager and agent system
-   - Session state management
+   - Session state management with in-memory storage
+   - Real-time event streaming support
 
-2. **Frontend** (`src/static/index.html`):
+2. **Frontend** (`jarvis/src/static/index.html`):
    - Single-page application (HTML/CSS/JavaScript)
    - Responsive chat interface
-   - File upload handling
-   - Real-time updates
+   - File upload handling with multipart/form-data
+   - Session ID display and management
+   - Real-time updates via HTTP polling
+
+3. **State Management**:
+   - Sessions stored in memory (HashMap)
+   - Message history per session
+   - Context files attached to requests
+   - Configuration from user's config directory
 
 ## Comparison with CLI Mode
 
@@ -243,15 +251,18 @@ The GUI mode consists of:
 
 ## Future Enhancements
 
-Planned improvements for the GUI mode:
+Potential improvements for the GUI mode:
 
-- [ ] Real-time streaming of agent responses
+- [ ] Real-time streaming of agent responses (SSE or WebSocket)
 - [ ] Syntax highlighting for code in responses
-- [ ] Markdown rendering
+- [ ] Markdown rendering for formatted output
 - [ ] Dark mode toggle
 - [ ] File preview before upload
-- [ ] Drag and drop file upload
+- [ ] Enhanced drag and drop file upload
 - [ ] Multi-user support with authentication
-- [ ] Chat history search
-- [ ] Export conversations
-- [ ] Agent selection UI
+- [ ] Chat history persistence to database
+- [ ] Chat history search functionality
+- [ ] Export conversations to markdown/JSON
+- [ ] Agent selection UI for choosing specific agents
+- [ ] Progress indicators for long-running tasks
+- [ ] Metrics visualization dashboard
