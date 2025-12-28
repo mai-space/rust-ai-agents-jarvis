@@ -210,28 +210,10 @@ async fn handle_chat_stream(
     let agent_name = request.agent.unwrap_or_else(|| "ProductOwner".to_string());
     let message = request.message.clone();
 
-    // Spawn background task to run agent and stream events
+    // Spawn background task to run agent
     tokio::spawn(async move {
         // Send session ID first
         let _ = tx.send(format!("session:{}", session_id));
-        
-        // Subscribe to agent events
-        let mut event_rx = manager.event_broadcaster.subscribe().await;
-        let tx_clone = tx.clone();
-        
-        // Spawn task to forward events
-        tokio::spawn(async move {
-            while let Some(event) = event_rx.recv().await {
-                let event_json = match serde_json::to_string(&event) {
-                    Ok(json) => json,
-                    Err(e) => {
-                        tracing::warn!("Failed to serialize event: {}", e);
-                        continue;
-                    }
-                };
-                let _ = tx_clone.send(format!("event:{}", event_json));
-            }
-        });
         
         // Run manager
         match manager.run_with_session(
