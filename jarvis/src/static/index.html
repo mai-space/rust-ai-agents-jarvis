@@ -1496,7 +1496,7 @@
                     if (response.ok) {
                         isTaskRunning = false;
                         updateStopRestartButton();
-                        showError('Task stopped by user');
+                        showSuccess('Task cancelled successfully');
                     } else {
                         const errorText = await response.text();
                         showError(`Failed to stop task: ${errorText}`);
@@ -2020,6 +2020,17 @@
             container.scrollTop = container.scrollHeight;
             
             setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const container = document.getElementById('messagesContainer');
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            container.appendChild(successDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            setTimeout(() => successDiv.remove(), 3000);
         }
 
         function escapeHtml(text) {

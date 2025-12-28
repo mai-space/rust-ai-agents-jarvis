@@ -291,8 +291,7 @@ async fn handle_chat_stream(
             }
             Err(e) => {
                 // Send error and then done signal so UI knows stream is complete
-                let error_msg = format!("error:{}", e);
-                let _ = tx.send(error_msg);
+                let _ = tx.send(format!("error:{}", e));
                 let _ = tx.send("done".to_string());
             }
         }
