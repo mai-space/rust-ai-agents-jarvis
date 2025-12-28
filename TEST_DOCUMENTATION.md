@@ -559,12 +559,14 @@ Current test coverage (as of last update):
 |----------|-------|--------|
 | Unit Tests | 32 | ✅ Passing |
 | Agent Tests | 4 | ✅ Passing |
-| Phase Tests | 11 | ✅ Passing |
+| Phase Tests | 11 (1 ignored) | ✅ Passing |
 | GUI Tests | 13 | ✅ Passing |
 | Context Files Tests | 6 | ✅ Passing |
 | Event System Tests | 10 | ✅ Passing |
 | MCP Types Tests | 12 | ✅ Passing |
-| **Total** | **88** | ✅ **All Passing** |
+| **Total** | **88** (1 ignored) | ✅ **All Passing** |
+
+**Note:** The `test_acp_server_endpoints` test in `phase10_test.rs` is marked as `#[ignore]` due to a known hanging issue in CI. This test verifies ACP (Agent Client Protocol) HTTP endpoints but blocks indefinitely on the second HTTP request. The test can be run manually with `cargo test test_acp_server_endpoints -- --ignored` for local verification.
 
 ## Contributing
 
