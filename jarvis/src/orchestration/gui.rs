@@ -31,6 +31,7 @@ pub struct ChatRequest {
     pub message: String,
     pub session_id: Option<String>,
     pub context_files: Option<Vec<ContextFileData>>,
+    pub agent: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -79,6 +80,7 @@ pub fn create_gui_app(manager: Arc<Manager>, config: Config) -> Router {
     Router::new()
         .route("/", get(serve_index))
         .route("/api/chat", post(handle_chat))
+        .route("/api/chat/stream", post(handle_chat_stream))
         .route("/api/session/:session_id", get(get_session))
         .route("/api/upload", post(handle_upload))
         .route("/api/events/:session_id", get(handle_events))
@@ -124,10 +126,11 @@ async fn handle_chat(
         })
         .collect();
 
-    // Run manager
+    // Run manager with selected agent
+    let agent_name = request.agent.as_deref().unwrap_or("ProductOwner");
     let result = state.manager
         .run_with_session(
-            "ProductOwner",
+            agent_name,
             request.message,
             Some(session_id.clone()),
             context_files,
@@ -159,6 +162,93 @@ async fn handle_chat(
         response: response_text,
         timestamp: response_timestamp,
     }))
+}
+
+async fn handle_chat_stream(
+    State(state): State<Arc<GuiState>>,
+    Json(request): Json<ChatRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let session_id = request.session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let message_id = Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().timestamp();
+
+    // Store user message
+    let user_msg = ChatMessage {
+        id: message_id.clone(),
+        role: "user".to_string(),
+        content: request.message.clone(),
+        timestamp,
+    };
+
+    {
+        let mut sessions = state.sessions.lock().await;
+        sessions.entry(session_id.clone())
+            .or_insert_with(Vec::new)
+            .push(user_msg);
+    }
+
+    // Convert context files to agent format
+    let context_files = request.context_files
+        .unwrap_or_default()
+        .into_iter()
+        .map(|cf| crate::agents::ContextFile {
+            path: cf.path,
+            content: cf.content,
+        })
+        .collect();
+
+    let (tx, rx) = mpsc::unbounded_channel();
+    let manager = Arc::clone(&state.manager);
+    let state_clone = Arc::clone(&state);
+    let agent_name = request.agent.unwrap_or_else(|| "ProductOwner".to_string());
+    let message = request.message.clone();
+
+    // Spawn background task to run agent
+    tokio::spawn(async move {
+        // Send session ID first
+        let _ = tx.send(format!("session:{}", session_id));
+        
+        // Run manager
+        match manager.run_with_session(
+            &agent_name,
+            message,
+            Some(session_id.clone()),
+            context_files,
+        ).await {
+            Ok(result) => {
+                let response_text = result.0;
+                let response_timestamp = chrono::Utc::now().timestamp();
+
+                // Store assistant response
+                let assistant_msg = ChatMessage {
+                    id: Uuid::new_v4().to_string(),
+                    role: "assistant".to_string(),
+                    content: response_text.clone(),
+                    timestamp: response_timestamp,
+                };
+
+                {
+                    let mut sessions = state_clone.sessions.lock().await;
+                    sessions.entry(session_id.clone())
+                        .or_insert_with(Vec::new)
+                        .push(assistant_msg);
+                }
+
+                // Send complete response
+                let _ = tx.send(format!("data:{}", response_text));
+                let _ = tx.send("done".to_string());
+            }
+            Err(e) => {
+                let _ = tx.send(format!("error:{}", e));
+            }
+        }
+    });
+
+    // Convert receiver to stream
+    let stream = UnboundedReceiverStream::new(rx);
+    let event_stream = stream.map(|msg| Ok(Event::default().data(msg)));
+
+    Sse::new(event_stream).keep_alive(KeepAlive::default())
 }
 
 async fn get_session(
