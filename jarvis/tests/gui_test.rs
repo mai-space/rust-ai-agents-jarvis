@@ -243,3 +243,163 @@ async fn test_gui_multiple_sessions() {
     assert!(messages.len() >= 1);
 }
 
+#[tokio::test]
+async fn test_gui_agent_selection() {
+    let config = Config::default();
+    let llm = Arc::new(MockLlm);
+    let mut manager = Manager::new(3);
+    
+    // Register multiple agents
+    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
+    manager.register_agent("ProductOwner".to_string(), po.clone());
+    manager.register_agent("SeniorDeveloper".to_string(), po);
+    
+    let manager = Arc::new(manager);
+    let app = create_gui_app(manager, config);
+    
+    // Test with specific agent selection
+    let chat_request = serde_json::json!({
+        "session_id": "test-session-agent",
+        "message": "Test message",
+        "agent": "SeniorDeveloper",
+        "context_files": []
+    });
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/chat")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_string(&chat_request).unwrap()))
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let chat_response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    assert!(chat_response.get("session_id").is_some());
+    assert!(chat_response.get("response").is_some());
+}
+
+#[tokio::test]
+async fn test_gui_chat_stream_endpoint() {
+    let config = Config::default();
+    let llm = Arc::new(MockLlm);
+    let mut manager = Manager::new(3);
+    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
+    manager.register_agent("ProductOwner".to_string(), po);
+    let manager = Arc::new(manager);
+    
+    let app = create_gui_app(manager, config);
+    
+    let chat_request = serde_json::json!({
+        "session_id": "test-stream-session",
+        "message": "Test streaming",
+        "context_files": []
+    });
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/chat/stream")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_string(&chat_request).unwrap()))
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    // Check that response has SSE content type
+    let content_type = response.headers().get("content-type");
+    assert!(content_type.is_some());
+    let content_type_str = content_type.unwrap().to_str().unwrap();
+    assert!(content_type_str.contains("text/event-stream"));
+}
+
+#[tokio::test]
+async fn test_gui_default_agent() {
+    let config = Config::default();
+    let llm = Arc::new(MockLlm);
+    let mut manager = Manager::new(3);
+    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
+    manager.register_agent("ProductOwner".to_string(), po);
+    let manager = Arc::new(manager);
+    
+    let app = create_gui_app(manager, config);
+    
+    // Test without agent selection (should default to ProductOwner)
+    let chat_request = serde_json::json!({
+        "session_id": "test-default-agent",
+        "message": "Test default agent",
+        "context_files": []
+    });
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/chat")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_string(&chat_request).unwrap()))
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let chat_response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(chat_response["session_id"], "test-default-agent");
+    assert!(chat_response.get("response").is_some());
+}
+
+#[tokio::test]
+async fn test_gui_file_upload_with_preview() {
+    let config = Config::default();
+    let manager = Arc::new(Manager::new(3));
+    
+    let app = create_gui_app(manager, config);
+    
+    // Create multipart form data
+    let boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+    let body = format!(
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n\
+         Content-Type: text/plain\r\n\
+         \r\n\
+         Hello, this is test content!\r\n\
+         ------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n"
+    );
+    
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/upload")
+                .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+                .body(Body::from(body))
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let files: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0]["path"], "test.txt");
+    assert_eq!(files[0]["content"], "Hello, this is test content!");
+}
+
