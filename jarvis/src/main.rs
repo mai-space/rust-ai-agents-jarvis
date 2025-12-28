@@ -88,6 +88,14 @@ struct Args {
     #[arg(long)]
     serve_mcp: bool,
 
+    /// Start GUI server (web-based chat interface)
+    #[arg(long)]
+    serve_gui: bool,
+
+    /// Port for GUI server
+    #[arg(long, default_value_t = 3000)]
+    gui_port: u16,
+
     /// Context files to provide to agents (comma-separated paths)
     #[arg(long, value_delimiter = ',')]
     context_files: Option<Vec<String>>,
@@ -336,6 +344,9 @@ async fn main() -> Result<()> {
         
         let server = jarvis::mcp::McpServer::new(all_tools);
         server.run().await?;
+    } else if args.serve_gui {
+        info!("Starting GUI server on port {}...", args.gui_port);
+        jarvis::orchestration::gui::start_gui_server(manager, args.gui_port).await?;
     } else if args.serve_acp {
         info!("Starting ACP server on port {}...", args.acp_port);
         jarvis::orchestration::acp::start_acp_server(manager, args.acp_port).await?;

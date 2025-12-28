@@ -1,4 +1,5 @@
 pub mod acp;
+pub mod gui;
 
 use crate::agents::{Agent, AgentContext, AgentOutput, ContextFile};
 use crate::providers::{VectorDbProvider, PersistenceProvider};
