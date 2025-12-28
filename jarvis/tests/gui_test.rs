@@ -6,8 +6,34 @@ use jarvis::orchestration::gui::create_gui_app;
 use jarvis::config::Config;
 use jarvis::orchestration::Manager;
 use jarvis::providers::mock::MockLlm;
-use jarvis::agents::planning::ProductOwner;
+use jarvis::agents::planning::{ProductOwner, RequirementsEngineer};
+use jarvis::agents::development::SeniorDeveloper;
+use jarvis::agents::refinement::{AccessibilityExpert, SEOExpert};
+use jarvis::agents::validation::QATester;
+use jarvis::agents::security::SecurityExpert;
+use jarvis::agents::documentation::Librarian;
 use std::sync::Arc;
+
+// Helper function to register all agents needed for tests
+fn register_all_agents(manager: &mut Manager, llm: Arc<MockLlm>) {
+    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
+    let re = Arc::new(RequirementsEngineer::new(llm.clone(), vec![]));
+    let dev = Arc::new(SeniorDeveloper::new(llm.clone(), vec![]));
+    let accessibility = Arc::new(AccessibilityExpert::new(llm.clone(), vec![]));
+    let seo = Arc::new(SEOExpert::new(llm.clone(), vec![]));
+    let security = Arc::new(SecurityExpert::new(llm.clone(), vec![]));
+    let qa = Arc::new(QATester::new(llm.clone(), vec![]));
+    let lib = Arc::new(Librarian::new(llm.clone(), vec![]));
+
+    manager.register_agent("ProductOwner".to_string(), po);
+    manager.register_agent("RequirementsEngineer".to_string(), re);
+    manager.register_agent("SeniorDeveloper".to_string(), dev);
+    manager.register_agent("AccessibilityExpert".to_string(), accessibility);
+    manager.register_agent("SEOExpert".to_string(), seo);
+    manager.register_agent("SecurityExpert".to_string(), security);
+    manager.register_agent("QATester".to_string(), qa);
+    manager.register_agent("Librarian".to_string(), lib);
+}
 
 #[tokio::test]
 async fn test_gui_index_route() {
@@ -61,8 +87,7 @@ async fn test_gui_chat_endpoint() {
     
     let llm = Arc::new(MockLlm);
     let mut manager = Manager::new(3);
-    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
-    manager.register_agent("ProductOwner".to_string(), po);
+    register_all_agents(&mut manager, llm);
     
     let manager = Arc::new(manager);
     
@@ -171,8 +196,7 @@ async fn test_gui_multiple_sessions() {
     let config = Config::default();
     let llm = Arc::new(MockLlm);
     let mut manager = Manager::new(3);
-    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
-    manager.register_agent("ProductOwner".to_string(), po);
+    register_all_agents(&mut manager, llm);
     let manager = Arc::new(manager);
     
     let app = create_gui_app(manager, config);
@@ -249,10 +273,8 @@ async fn test_gui_agent_selection() {
     let llm = Arc::new(MockLlm);
     let mut manager = Manager::new(3);
     
-    // Register multiple agents
-    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
-    manager.register_agent("ProductOwner".to_string(), po.clone());
-    manager.register_agent("SeniorDeveloper".to_string(), po);
+    // Register all agents
+    register_all_agents(&mut manager, llm);
     
     let manager = Arc::new(manager);
     let app = create_gui_app(manager, config);
@@ -291,8 +313,7 @@ async fn test_gui_chat_stream_endpoint() {
     let config = Config::default();
     let llm = Arc::new(MockLlm);
     let mut manager = Manager::new(3);
-    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
-    manager.register_agent("ProductOwner".to_string(), po);
+    register_all_agents(&mut manager, llm);
     let manager = Arc::new(manager);
     
     let app = create_gui_app(manager, config);
@@ -329,8 +350,7 @@ async fn test_gui_default_agent() {
     let config = Config::default();
     let llm = Arc::new(MockLlm);
     let mut manager = Manager::new(3);
-    let po = Arc::new(ProductOwner::new(llm.clone(), vec![]));
-    manager.register_agent("ProductOwner".to_string(), po);
+    register_all_agents(&mut manager, llm);
     let manager = Arc::new(manager);
     
     let app = create_gui_app(manager, config);

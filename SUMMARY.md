@@ -274,7 +274,7 @@ Top Handoff Pairs:
 - All 11 roadmap phases implemented
 - 8 specialized agents operational
 - 17+ tools available
-- Comprehensive test coverage (32 tests)
+- Comprehensive test coverage (56 tests: 32 lib + 24 integration)
 - Cross-platform support
 - GUI and API interfaces
 
@@ -287,7 +287,7 @@ Top Handoff Pairs:
 - All tests passing
 
 ✅ **Documentation:**
-- README with full feature overview
+- README with full feature overview and testing notes
 - SUMMARY with implementation details
 - IMPROVEMENTS with technical deep-dive
 - plan.md with roadmap
