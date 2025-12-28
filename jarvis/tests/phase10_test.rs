@@ -1,3 +1,14 @@
+/// Tests for Phase 10: Extensibility & IDE Integration (MCP/ACP)
+/// 
+/// These tests verify the Model Context Protocol (MCP) and Agent Client Protocol (ACP)
+/// implementations that allow Jarvis to integrate with IDEs and external tools.
+/// 
+/// Tests cover:
+/// - MCP client-server communication
+/// - MCP tool listing and execution
+/// - ACP HTTP endpoints for IDE integration
+/// - Task creation and step execution via ACP
+
 use jarvis::mcp::{McpClient, McpServer};
 use jarvis::orchestration::{Manager, acp};
 use jarvis::providers::mock::MockLlm;
@@ -12,6 +23,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use tower::ServiceExt;
 
+/// Mock tool for testing MCP functionality
 struct TestTool;
 #[async_trait]
 impl Tool for TestTool {
@@ -22,6 +34,15 @@ impl Tool for TestTool {
     }
 }
 
+/// Test MCP client-server integration
+/// 
+/// Verifies end-to-end MCP communication:
+/// - Client can connect to server
+/// - Tools can be listed via MCP protocol
+/// - Tools can be called with arguments
+/// - Results are properly formatted and returned
+/// 
+/// Uses in-memory duplex stream to avoid network overhead.
 #[tokio::test]
 async fn test_mcp_client_server_integration() -> Result<()> {
     let (client_io, server_io) = duplex(1024);
@@ -56,6 +77,15 @@ async fn test_mcp_client_server_integration() -> Result<()> {
     Ok(())
 }
 
+/// Test ACP (Agent Client Protocol) HTTP endpoints
+/// 
+/// Verifies IDE integration via HTTP API:
+/// - Task creation endpoint accepts input
+/// - Task IDs are properly generated
+/// - Step execution endpoint runs agent logic
+/// - Results contain expected output format
+/// 
+/// This enables JetBrains and VS Code integration.
 #[tokio::test]
 async fn test_acp_server_endpoints() -> Result<()> {
     let llm = Arc::new(MockLlm);

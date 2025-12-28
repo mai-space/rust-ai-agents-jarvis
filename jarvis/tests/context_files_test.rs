@@ -1,3 +1,11 @@
+/// Tests for context files functionality
+/// 
+/// Context files allow users to provide specific files as context to agents,
+/// enabling more focused and efficient task execution. These tests verify:
+/// - Context files are properly passed to agents
+/// - Agents can access context file content
+/// - Empty context file handling works correctly
+
 use jarvis::orchestration::Manager;
 use jarvis::agents::{Agent, AgentContext, AgentOutput, ContextFile};
 use jarvis::tools::Tool;
@@ -5,6 +13,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
+/// Test agent that verifies context files are accessible
 struct TestAgent;
 
 #[async_trait]
@@ -35,6 +44,13 @@ impl Agent for TestAgent {
     }
 }
 
+/// Test that context files are correctly passed to agents
+/// 
+/// Verifies that:
+/// - Multiple context files can be provided
+/// - File paths are preserved
+/// - File content is accessible to agents
+/// - Agent receives correct number of files
 #[tokio::test]
 async fn test_context_files_passed_to_agent() -> Result<()> {
     let mut manager = Manager::new(3);
@@ -66,6 +82,10 @@ async fn test_context_files_passed_to_agent() -> Result<()> {
     Ok(())
 }
 
+/// Test agent behavior with empty context files
+/// 
+/// Ensures that agents can handle cases where no context
+/// files are provided, returning appropriate errors.
 #[tokio::test]
 async fn test_empty_context_files() -> Result<()> {
     let mut manager = Manager::new(3);
@@ -85,6 +105,10 @@ async fn test_empty_context_files() -> Result<()> {
     Ok(())
 }
 
+/// Test ContextFile struct creation and field access
+/// 
+/// Verifies that ContextFile instances can be created
+/// and their fields accessed correctly.
 #[test]
 fn test_context_file_creation() {
     let cf = ContextFile {
