@@ -59,10 +59,12 @@ pub struct GuiState {
     pub sessions: Mutex<HashMap<String, Vec<ChatMessage>>>,
     pub event_channels: Mutex<HashMap<String, mpsc::UnboundedSender<String>>>,
     pub config: Mutex<Config>,
+    pub config_path: Option<std::path::PathBuf>,
 }
 
 pub async fn start_gui_server(manager: Arc<Manager>, port: u16, config: Config) -> Result<()> {
-    let app = create_gui_app(manager, config);
+    let config_path = Config::get_config_path().ok();
+    let app = create_gui_app_with_path(manager, config, config_path);
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     tracing::info!("GUI server listening on http://0.0.0.0:{}", port);
     axum::serve(listener, app).await?;
@@ -70,11 +72,16 @@ pub async fn start_gui_server(manager: Arc<Manager>, port: u16, config: Config) 
 }
 
 pub fn create_gui_app(manager: Arc<Manager>, config: Config) -> Router {
+    create_gui_app_with_path(manager, config, None)
+}
+
+pub fn create_gui_app_with_path(manager: Arc<Manager>, config: Config, config_path: Option<std::path::PathBuf>) -> Router {
     let state = Arc::new(GuiState {
         manager,
         sessions: Mutex::new(HashMap::new()),
         event_channels: Mutex::new(HashMap::new()),
         config: Mutex::new(config),
+        config_path,
     });
 
     Router::new()
@@ -339,9 +346,11 @@ async fn update_settings(
     let mut config = state.config.lock().await;
     *config = new_config.clone();
     
-    // Save to disk
-    if let Err(e) = config.save() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save config: {}", e)));
+    // Save to disk if path is provided
+    if let Some(path) = &state.config_path {
+        if let Err(e) = config.save_to_path(path.clone()) {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save config to {:?}: {}", path, e)));
+        }
     }
     
     Ok(Json(new_config))

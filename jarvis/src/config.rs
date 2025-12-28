@@ -52,6 +52,9 @@ impl Default for Config {
 
 impl Config {
     pub fn get_config_path() -> Result<PathBuf> {
+        if let Ok(path) = std::env::var("JARVIS_CONFIG_PATH") {
+            return Ok(PathBuf::from(path));
+        }
         let proj_dirs = ProjectDirs::from("com", "jarvis", "jarvis")
             .ok_or_else(|| anyhow!("Could not find config directory"))?;
         let config_dir = proj_dirs.config_dir();
@@ -62,7 +65,10 @@ impl Config {
     }
 
     pub fn load() -> Result<Self> {
-        let path = Self::get_config_path()?;
+        Self::load_from_path(Self::get_config_path()?)
+    }
+
+    pub fn load_from_path(path: PathBuf) -> Result<Self> {
         if !path.exists() {
             return Ok(Config::default());
         }
@@ -72,8 +78,14 @@ impl Config {
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = Self::get_config_path()?;
+        self.save_to_path(Self::get_config_path()?)
+    }
+
+    pub fn save_to_path(&self, path: PathBuf) -> Result<()> {
         let content = toml::to_string_pretty(self)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(path, content)?;
         Ok(())
     }
