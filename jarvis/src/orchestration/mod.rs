@@ -5,6 +5,7 @@ use crate::agents::{Agent, AgentContext, AgentOutput, ContextFile};
 use crate::providers::{VectorDbProvider, PersistenceProvider};
 use crate::project_context::ProjectContextManager;
 use crate::metrics::HandoffMetrics;
+use crate::events::{EventBroadcaster, TaskSummary};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,6 +24,7 @@ pub struct Manager {
     vector_db: Option<Arc<dyn VectorDbProvider>>,
     persistence: Option<Arc<dyn PersistenceProvider>>,
     pub metrics: std::sync::Mutex<HandoffMetrics>,
+    pub event_broadcaster: Arc<EventBroadcaster>,
 }
 
 impl Manager {
@@ -34,6 +36,7 @@ impl Manager {
             vector_db: None,
             persistence: None,
             metrics: std::sync::Mutex::new(HandoffMetrics::default()),
+            event_broadcaster: Arc::new(EventBroadcaster::new()),
         }
     }
 
@@ -81,6 +84,7 @@ impl Manager {
 
     pub async fn run_with_session(&self, initial_agent: &str, task: String, session_id: Option<String>, context_files: Vec<ContextFile>) -> Result<(String, Option<String>)> {
         let mut current_agent_name = initial_agent.to_string();
+        let start_time = std::time::Instant::now();
         
         // Generate session ID if persistence is enabled and no ID provided
         let effective_session_id = if self.persistence.is_some() {
@@ -106,6 +110,9 @@ impl Manager {
             info!("Manager: Project ID: {}", meta.project_id);
         }
         
+        // Create task summary
+        let task_summary = Arc::new(tokio::sync::RwLock::new(TaskSummary::new()));
+        
         let mut context = if let (Some(persistence), Some(sid)) = (&self.persistence, &effective_session_id) {
             if let Some(state) = persistence.load_state(sid).await? {
                 info!("Manager: Resuming session '{}'", sid);
@@ -119,6 +126,8 @@ impl Manager {
                     project_metadata: project_metadata.clone(),
                     handoff_count: HashMap::new(),
                     context_files: context_files.clone(),
+                    event_broadcaster: Some(self.event_broadcaster.clone()),
+                    task_summary: task_summary.clone(),
                 }
             } else {
                 AgentContext {
@@ -129,6 +138,8 @@ impl Manager {
                     project_metadata: project_metadata.clone(),
                     handoff_count: HashMap::new(),
                     context_files: context_files.clone(),
+                    event_broadcaster: Some(self.event_broadcaster.clone()),
+                    task_summary: task_summary.clone(),
                 }
             }
         } else {
@@ -140,6 +151,8 @@ impl Manager {
                 project_metadata: project_metadata.clone(),
                 handoff_count: HashMap::new(),
                 context_files,
+                event_broadcaster: Some(self.event_broadcaster.clone()),
+                task_summary: task_summary.clone(),
             }
         };
 
@@ -167,6 +180,9 @@ impl Manager {
                 if last_four[0] == last_four[2] && last_four[1] == last_four[3] {
                     warn!("Manager: Detected immediate handoff loop: {} <-> {}", last_four[0], last_four[1]);
                     
+                    // Emit loop detected event
+                    self.event_broadcaster.loop_detected(vec![last_four[0].clone(), last_four[1].clone()]).await;
+                    
                     // Record loop incident
                     if let Ok(mut metrics) = self.metrics.lock() {
                         metrics.record_loop_incident();
@@ -174,6 +190,12 @@ impl Manager {
                     
                     if let Some(hitl) = &self.hitl {
                         info!("Manager: Requesting human intervention to break the loop");
+                        
+                        // Emit human intervention event
+                        self.event_broadcaster.human_intervention_requested(
+                            current_agent_name.clone(),
+                            "Loop detected between agents".to_string()
+                        ).await;
                         
                         // Record human intervention
                         if let Ok(mut metrics) = self.metrics.lock() {
@@ -192,6 +214,12 @@ impl Manager {
                             metrics.record_failure(agent_call_sequence.len());
                         }
                         
+                        // Emit task failed event
+                        self.event_broadcaster.task_failed(
+                            current_agent_name.clone(),
+                            format!("Agent handoff loop detected: {} <-> {}", last_four[0], last_four[1])
+                        ).await;
+                        
                         return Err(anyhow::anyhow!("Agent handoff loop detected: {} <-> {}", last_four[0], last_four[1]));
                     }
                 }
@@ -204,6 +232,13 @@ impl Manager {
                     metrics.record_failure(agent_call_sequence.len());
                 }
                 error!("Manager: Exceeded maximum total agent iterations (30)");
+                
+                // Emit task failed event
+                self.event_broadcaster.task_failed(
+                    current_agent_name.clone(),
+                    "Task exceeded maximum agent iterations".to_string()
+                ).await;
+                
                 return Err(anyhow::anyhow!("Task exceeded maximum agent iterations"));
             }
             
@@ -213,14 +248,35 @@ impl Manager {
             match agent.process(&mut context).await? {
                 AgentOutput::Success(result) => {
                     info!("Manager: Task completed by '{}'", current_agent_name);
+                    
+                    // Finalize task summary
+                    let mut summary = task_summary.write().await;
+                    let elapsed = start_time.elapsed();
+                    summary.total_duration_ms = Some(elapsed.as_millis() as u64);
+                    
                     // Record success metrics
                     if let Ok(mut metrics) = self.metrics.lock() {
                         metrics.record_success(agent_call_sequence.len());
                     }
+                    
+                    // Emit task completed event
+                    self.event_broadcaster.task_completed(
+                        current_agent_name.clone(),
+                        result.clone(),
+                        Some(summary.clone())
+                    ).await;
+                    
                     return Ok((result, effective_session_id));
                 }
                 AgentOutput::Handoff { target, reason, context: new_context } => {
                     info!("Manager: Handoff from '{}' to '{}'. Reason: {}", current_agent_name, target, reason);
+                    
+                    // Emit handoff event
+                    self.event_broadcaster.handoff(
+                        current_agent_name.clone(),
+                        target.clone(),
+                        reason.clone()
+                    ).await;
                     
                     // Record handoff metrics
                     if let Ok(mut metrics) = self.metrics.lock() {
@@ -232,6 +288,12 @@ impl Manager {
                         warn!("Manager: Max retries reached for agent '{}'.", target);
                         if let Some(hitl) = &self.hitl {
                             info!("Manager: Requesting human intervention for agent '{}'", target);
+                            
+                            // Emit human intervention event
+                            self.event_broadcaster.human_intervention_requested(
+                                target.clone(),
+                                format!("Max retries reached: {}", new_context)
+                            ).await;
                             
                             // Record human intervention
                             if let Ok(mut metrics) = self.metrics.lock() {
@@ -251,6 +313,12 @@ impl Manager {
                                 metrics.record_failure(agent_call_sequence.len());
                             }
                             
+                            // Emit task failed event
+                            self.event_broadcaster.task_failed(
+                                current_agent_name.clone(),
+                                format!("Max retries reached for agent '{}'", target)
+                            ).await;
+                            
                             return Err(anyhow::anyhow!("Max retries reached for agent '{}'", target));
                         }
                     } else {
@@ -263,6 +331,13 @@ impl Manager {
                 }
                 AgentOutput::Error(err) => {
                     error!("Manager: Error from agent '{}': {}", current_agent_name, err);
+                    
+                    // Emit task failed event
+                    self.event_broadcaster.task_failed(
+                        current_agent_name.clone(),
+                        err.clone()
+                    ).await;
+                    
                     return Err(anyhow::anyhow!("Agent error: {}", err));
                 }
             }

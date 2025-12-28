@@ -237,6 +237,256 @@
             }
         }
 
+        /* Agent Event Styles */
+        .agent-events-container {
+            margin-bottom: 12px;
+        }
+
+        .agent-event {
+            margin-bottom: 8px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            animation: fadeInSlide 0.3s ease-out;
+            border-left: 3px solid;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .agent-event-icon {
+            font-size: 14px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .agent-event-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .agent-event-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .agent-event-time {
+            font-size: 10px;
+            opacity: 0.6;
+            margin-left: auto;
+        }
+
+        .agent-event-details {
+            font-size: 11px;
+            opacity: 0.9;
+            margin-top: 4px;
+            word-break: break-word;
+        }
+
+        /* Agent Started Event */
+        .agent-event.agent-started {
+            background: #dbeafe;
+            border-left-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        body.dark-mode .agent-event.agent-started {
+            background: #1e3a5f;
+            color: #93c5fd;
+        }
+
+        /* Agent Thought Event */
+        .agent-event.agent-thought {
+            background: #eff6ff;
+            border-left-color: #2563eb;
+            color: #1e40af;
+        }
+
+        body.dark-mode .agent-event.agent-thought {
+            background: #1e3a5f;
+            color: #93c5fd;
+        }
+
+        /* Tool Call Event */
+        .agent-event.tool-call {
+            background: #fff7ed;
+            border-left-color: #f59e0b;
+            color: #92400e;
+        }
+
+        body.dark-mode .agent-event.tool-call {
+            background: #451a03;
+            color: #fbbf24;
+        }
+
+        /* Tool Result Success */
+        .agent-event.tool-success {
+            background: #d1fae5;
+            border-left-color: #10b981;
+            color: #065f46;
+        }
+
+        body.dark-mode .agent-event.tool-success {
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+
+        /* Tool Result Error */
+        .agent-event.tool-error {
+            background: #fee2e2;
+            border-left-color: #ef4444;
+            color: #991b1b;
+        }
+
+        body.dark-mode .agent-event.tool-error {
+            background: #7f1d1d;
+            color: #fca5a5;
+        }
+
+        /* Plan Created Event */
+        .agent-event.plan-created {
+            background: #f3e8ff;
+            border-left-color: #a855f7;
+            color: #6b21a8;
+            cursor: pointer;
+        }
+
+        body.dark-mode .agent-event.plan-created {
+            background: #581c87;
+            color: #d8b4fe;
+        }
+
+        .agent-event.plan-created .agent-event-details {
+            max-height: 80px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .agent-event.plan-created.expanded .agent-event-details {
+            max-height: none;
+        }
+
+        .agent-event.plan-created:not(.expanded) .agent-event-details::after {
+            content: '▼ Click to expand';
+            display: block;
+            text-align: center;
+            margin-top: 8px;
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        .agent-event.plan-created.expanded .agent-event-details::after {
+            content: '▲ Click to collapse';
+            display: block;
+            text-align: center;
+            margin-top: 8px;
+            font-size: 10px;
+            opacity: 0.7;
+        }
+
+        /* Handoff Event */
+        .agent-event.handoff {
+            background: #fef3c7;
+            border-left-color: #f59e0b;
+            color: #92400e;
+        }
+
+        body.dark-mode .agent-event.handoff {
+            background: #451a03;
+            color: #fbbf24;
+        }
+
+        /* Task Completed Event */
+        .agent-event.task-completed {
+            background: #d1fae5;
+            border-left-color: #10b981;
+            color: #065f46;
+        }
+
+        body.dark-mode .agent-event.task-completed {
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+
+        /* Task Failed Event */
+        .agent-event.task-failed {
+            background: #fee2e2;
+            border-left-color: #ef4444;
+            color: #991b1b;
+        }
+
+        body.dark-mode .agent-event.task-failed {
+            background: #7f1d1d;
+            color: #fca5a5;
+        }
+
+        /* Loop Detected Event */
+        .agent-event.loop-detected {
+            background: #fef3c7;
+            border-left-color: #eab308;
+            color: #713f12;
+        }
+
+        body.dark-mode .agent-event.loop-detected {
+            background: #713f12;
+            color: #fde047;
+        }
+
+        /* Task Summary Styles */
+        .task-summary {
+            margin-top: 12px;
+            padding: 12px;
+            background: #ecfdf5;
+            border-radius: 8px;
+            border: 1px solid #10b981;
+        }
+
+        body.dark-mode .task-summary {
+            background: #064e3b;
+            border-color: #10b981;
+        }
+
+        .task-summary h4 {
+            margin: 0 0 8px 0;
+            color: #065f46;
+            font-size: 13px;
+        }
+
+        body.dark-mode .task-summary h4 {
+            color: #6ee7b7;
+        }
+
+        .task-summary-section {
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .task-summary-section strong {
+            display: block;
+            margin-bottom: 4px;
+            color: #047857;
+        }
+
+        body.dark-mode .task-summary-section strong {
+            color: #34d399;
+        }
+
+        .task-summary-section ul {
+            margin: 4px 0 0 16px;
+            padding: 0;
+            list-style: disc;
+        }
+
+        .task-summary-section code {
+            background: rgba(16, 185, 129, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+
         /* Markdown and code styling */
         .message-bubble pre {
             background: #f6f8fa;
@@ -1429,6 +1679,227 @@
             }
         }
 
+        // Create or get agent events container
+        function getOrCreateEventsContainer() {
+            const container = document.getElementById('messagesContainer');
+            let eventsContainer = container.querySelector('.agent-events-container:last-child');
+            if (!eventsContainer) {
+                eventsContainer = document.createElement('div');
+                eventsContainer.className = 'agent-events-container';
+                container.appendChild(eventsContainer);
+            }
+            return eventsContainer;
+        }
+
+        // Handle different event types
+        function handleAgentEvent(event) {
+            const eventsContainer = getOrCreateEventsContainer();
+            const container = document.getElementById('messagesContainer');
+            
+            switch(event.type) {
+                case 'agent_started':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '🤖',
+                        title: `${event.agent_name} Started`,
+                        className: 'agent-started',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'agent_thought':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '💭',
+                        title: `${event.agent_name}`,
+                        details: event.thought,
+                        className: 'agent-thought',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'tool_call':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '🔧',
+                        title: `Tool: ${event.tool_name}`,
+                        details: event.input_summary,
+                        className: 'tool-call',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'tool_result':
+                    const icon = event.success ? '✅' : '❌';
+                    appendAgentEvent(eventsContainer, {
+                        icon: icon,
+                        title: `${event.tool_name} Result`,
+                        details: event.output_summary,
+                        className: event.success ? 'tool-success' : 'tool-error',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'plan_created':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '📋',
+                        title: `${event.agent_name} Created Plan`,
+                        details: event.plan,
+                        className: 'plan-created',
+                        time: formatEventTime(event.timestamp),
+                        expandable: true
+                    });
+                    break;
+
+                case 'handoff':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '🔄',
+                        title: `Handoff: ${event.from_agent} → ${event.to_agent}`,
+                        details: event.reason,
+                        className: 'handoff',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'task_completed':
+                    if (event.summary) {
+                        appendTaskSummary(eventsContainer, event.summary);
+                    }
+                    appendAgentEvent(eventsContainer, {
+                        icon: '🎉',
+                        title: 'Task Completed',
+                        details: event.result,
+                        className: 'task-completed',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'task_failed':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '❌',
+                        title: 'Task Failed',
+                        details: `${event.agent_name}: ${event.error}`,
+                        className: 'task-failed',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'loop_detected':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '⚠️',
+                        title: 'Loop Detected',
+                        details: `Agents stuck in loop: ${event.agents.join(' ↔ ')}`,
+                        className: 'loop-detected',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+
+                case 'human_intervention_requested':
+                    appendAgentEvent(eventsContainer, {
+                        icon: '🙋',
+                        title: 'Human Intervention Requested',
+                        details: `${event.agent_name}: ${event.reason}`,
+                        className: 'loop-detected',
+                        time: formatEventTime(event.timestamp)
+                    });
+                    break;
+            }
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Append agent event to container
+        function appendAgentEvent(container, options) {
+            const eventDiv = document.createElement('div');
+            eventDiv.className = `agent-event ${options.className}`;
+            
+            let html = `
+                <div class="agent-event-icon">${options.icon}</div>
+                <div class="agent-event-content">
+                    <div class="agent-event-title">
+                        <span>${options.title}</span>
+                        <span class="agent-event-time">${options.time}</span>
+                    </div>
+            `;
+            
+            if (options.details) {
+                html += `<div class="agent-event-details">${escapeHtml(options.details)}</div>`;
+            }
+            
+            html += `</div>`;
+            eventDiv.innerHTML = html;
+            
+            if (options.expandable) {
+                eventDiv.addEventListener('click', function() {
+                    this.classList.toggle('expanded');
+                });
+            }
+            
+            container.appendChild(eventDiv);
+        }
+
+        // Append task summary
+        function appendTaskSummary(container, summary) {
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'task-summary';
+            
+            let html = '<h4>📊 Task Summary</h4>';
+            
+            if (summary.description) {
+                html += `<div class="task-summary-section">${escapeHtml(summary.description)}</div>`;
+            }
+            
+            if (summary.agents_involved && summary.agents_involved.length > 0) {
+                html += '<div class="task-summary-section"><strong>Agents Involved:</strong><ul>';
+                summary.agents_involved.forEach(agent => {
+                    html += `<li>${escapeHtml(agent)}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (summary.files_created && summary.files_created.length > 0) {
+                html += '<div class="task-summary-section"><strong>✨ Files Created:</strong><ul>';
+                summary.files_created.forEach(file => {
+                    html += `<li><code>${escapeHtml(file)}</code></li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (summary.files_modified && summary.files_modified.length > 0) {
+                html += '<div class="task-summary-section"><strong>✏️ Files Modified:</strong><ul>';
+                summary.files_modified.forEach(file => {
+                    html += `<li><code>${escapeHtml(file)}</code></li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (summary.files_deleted && summary.files_deleted.length > 0) {
+                html += '<div class="task-summary-section"><strong>🗑️ Files Deleted:</strong><ul>';
+                summary.files_deleted.forEach(file => {
+                    html += `<li><code>${escapeHtml(file)}</code></li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (summary.total_duration_ms) {
+                const duration = (summary.total_duration_ms / 1000).toFixed(2);
+                html += `<div class="task-summary-section"><strong>Duration:</strong> ${duration}s</div>`;
+            }
+            
+            summaryDiv.innerHTML = html;
+            container.appendChild(summaryDiv);
+        }
+
+        // Format event timestamp
+        function formatEventTime(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleTimeString();
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function showLoading() {
             const container = document.getElementById('messagesContainer');
             const loadingDiv = document.createElement('div');
@@ -1591,6 +2062,15 @@
                                     sessionId = newSessionId;
                                     document.getElementById('sessionIdDisplay').textContent = 
                                         `Session: ${sessionId.substring(0, 8)}...`;
+                                }
+                            } else if (data.startsWith('event:')) {
+                                // Parse and handle agent event
+                                try {
+                                    const eventJson = data.slice(6);
+                                    const event = JSON.parse(eventJson);
+                                    handleAgentEvent(event);
+                                } catch (e) {
+                                    console.error('Failed to parse event:', e);
                                 }
                             } else if (data.startsWith('data:')) {
                                 // Remove processing indicator and create message div

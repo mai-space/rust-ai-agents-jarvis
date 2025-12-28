@@ -95,6 +95,8 @@ async fn test_rag_logic() -> Result<()> {
         project_metadata: None,
         handoff_count: std::collections::HashMap::new(),
         context_files: vec![],
+        event_broadcaster: None,
+        task_summary: Arc::new(tokio::sync::RwLock::new(jarvis::events::TaskSummary::new())),
     };
 
     // We can't easily check the prompt sent to LLM here without more mocking,

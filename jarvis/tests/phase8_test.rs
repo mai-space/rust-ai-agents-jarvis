@@ -64,6 +64,8 @@ async fn test_dual_stream_rag() -> Result<()> {
         project_metadata: None,
         handoff_count: std::collections::HashMap::new(),
         context_files: vec![],
+        event_broadcaster: None,
+        task_summary: Arc::new(tokio::sync::RwLock::new(jarvis::events::TaskSummary::new())),
     };
 
     let lib = Librarian::new(llm.clone(), vec![]);
