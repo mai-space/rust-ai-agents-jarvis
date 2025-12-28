@@ -210,10 +210,49 @@ async fn handle_chat_stream(
     let agent_name = request.agent.unwrap_or_else(|| "ProductOwner".to_string());
     let message = request.message.clone();
 
-    // Spawn background task to run agent
+    // Spawn background task to run agent and stream events
     tokio::spawn(async move {
         // Send session ID first
         let _ = tx.send(format!("session:{}", session_id));
+        
+        // Subscribe to agent events  
+        let mut event_rx = manager.event_broadcaster.subscribe().await;
+        
+        // Clone tx for event forwarding
+        let tx_events = tx.clone();
+        
+        // Spawn task to forward events - will stop when channel closes or no events for 100ms
+        let event_handle = tokio::spawn(async move {
+            loop {
+                match tokio::time::timeout(
+                    tokio::time::Duration::from_millis(100),
+                    event_rx.recv()
+                ).await {
+                    Ok(Some(event)) => {
+                        let event_json = match serde_json::to_string(&event) {
+                            Ok(json) => json,
+                            Err(e) => {
+                                tracing::warn!("Failed to serialize event: {}", e);
+                                continue;
+                            }
+                        };
+                        // If send fails, receiver is dropped, exit
+                        if tx_events.send(format!("event:{}", event_json)).is_err() {
+                            break;
+                        }
+                    }
+                    Ok(None) => {
+                        // Channel closed, exit
+                        break;
+                    }
+                    Err(_) => {
+                        // Timeout - check if we should continue or exit
+                        // For now, just continue waiting for more events
+                        continue;
+                    }
+                }
+            }
+        });
         
         // Run manager
         match manager.run_with_session(
@@ -246,9 +285,15 @@ async fn handle_chat_stream(
                 let _ = tx.send("done".to_string());
             }
             Err(e) => {
+                // Send error and then done signal so UI knows stream is complete
                 let _ = tx.send(format!("error:{}", e));
+                let _ = tx.send("done".to_string());
             }
         }
+        
+        // Give event task a moment to process any remaining events, then abort
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        event_handle.abort();
     });
 
     // Convert receiver to stream
