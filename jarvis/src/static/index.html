@@ -706,6 +706,40 @@
             cursor: not-allowed;
         }
 
+        #stopRestartButton {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s, transform 0.1s;
+            min-width: 90px;
+        }
+
+        #stopRestartButton:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        #stopRestartButton.restart {
+            background: #10b981;
+        }
+
+        #stopRestartButton.restart:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        #stopRestartButton:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        #stopRestartButton:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .loading {
             display: flex;
             gap: 4px;
@@ -1302,6 +1336,7 @@
                         </svg>
                     </button>
                 </div>
+                <button id="stopRestartButton" class="restart" onclick="handleStopRestart()">Restart</button>
                 <button id="sendButton" onclick="sendMessage()">Send</button>
             </div>
         </div>
@@ -1381,6 +1416,7 @@
         let currentSettings = null;
         let pendingFiles = [];
         let allMessages = []; // Store all messages for search
+        let isTaskRunning = false; // Track if a task is currently running
 
         // Configure marked for markdown rendering
         marked.setOptions({
@@ -1424,6 +1460,56 @@
                     message.style.display = 'none';
                 }
             });
+        }
+
+        // Update stop/restart button based on task state
+        function updateStopRestartButton() {
+            const button = document.getElementById('stopRestartButton');
+            if (isTaskRunning) {
+                button.textContent = 'Stop';
+                button.className = '';
+                button.disabled = false;
+            } else {
+                button.textContent = 'Restart';
+                button.className = 'restart';
+                button.disabled = false;
+            }
+        }
+
+        // Handle stop/restart button click
+        async function handleStopRestart() {
+            const button = document.getElementById('stopRestartButton');
+            
+            if (isTaskRunning) {
+                // Stop the running task
+                if (!sessionId) {
+                    showError('No session ID available');
+                    return;
+                }
+                
+                try {
+                    button.disabled = true;
+                    const response = await fetch(`/api/task/stop/${sessionId}`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        isTaskRunning = false;
+                        updateStopRestartButton();
+                        showError('Task stopped by user');
+                    } else {
+                        const errorText = await response.text();
+                        showError(`Failed to stop task: ${errorText}`);
+                    }
+                } catch (error) {
+                    showError(`Failed to stop task: ${error.message}`);
+                } finally {
+                    button.disabled = false;
+                }
+            } else {
+                // Restart (start new chat)
+                startNewChat();
+            }
         }
 
         // Drag and drop functionality
@@ -1951,6 +2037,10 @@
             const sendButton = document.getElementById('sendButton');
             sendButton.disabled = true;
             
+            // Set task as running
+            isTaskRunning = true;
+            updateStopRestartButton();
+            
             // Get selected agent
             const selectedAgent = document.getElementById('agentSelect').value;
             
@@ -2015,6 +2105,9 @@
                 showError(`Failed to send message: ${error.message}`);
             } finally {
                 sendButton.disabled = false;
+                // Task completed
+                isTaskRunning = false;
+                updateStopRestartButton();
             }
         }
 
@@ -2110,6 +2203,7 @@
             sessionId = null;
             attachedFiles = [];
             allMessages = [];
+            isTaskRunning = false; // Reset task state
             document.getElementById('fileAttachments').innerHTML = '';
             document.getElementById('searchInput').value = '';
             document.getElementById('agentSelect').value = 'ProductOwner';
@@ -2122,6 +2216,7 @@
             `;
             document.getElementById('sessionIdDisplay').textContent = 'New Session';
             document.getElementById('messageInput').value = '';
+            updateStopRestartButton(); // Update button state
         }
 
         // Settings management
