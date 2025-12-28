@@ -71,8 +71,9 @@ The GUI supports attaching files to provide context to the agents, just like the
 1. Click the 📎 (paperclip) icon in the input area
 2. Select one or more files from your computer
 3. Supported file types:
-   - Source code: `.rs`, `.js`, `.ts`, `.py`, `.java`, `.go`, `.cpp`, `.c`, `.h`, `.hpp`
-   - Config files: `.json`, `.yaml`, `.yml`, `.toml`, `.txt`
+   - Source code: `.rs`, `.js`, `.ts`, `.py`, `.java`, `.go`, `.cpp`, `.c`, `.h`, `.hpp`, `.php`
+   - Scripts: `.sh`, `.bash`
+   - Config files: `.json`, `.yaml`, `.yml`, `.toml`, `.txt`, `.tsconfig`, `.typoscript`
    - Documentation: `.md`, `.html`, `.css`
 4. The files appear as chips above the input box
 5. Remove a file by clicking the × button on its chip
