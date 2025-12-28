@@ -122,5 +122,5 @@ The GUI validates file types client-side and shows friendly error messages for u
 2. **File Size Considerations**: Be mindful of large files as they consume prompt space. The total context should stay within model limits
 3. **Relative or Absolute Paths**: Both work, but relative paths from project root are recommended for consistency
 4. **Update Context**: If files change during development, restart with updated context files or provide new files via GUI
-5. **Combine with RAG**: Context files work alongside the vector database RAG system for maximum effectiveness
+5. **Combine with RAG**: Context files are directly injected into agent prompts and complement the RAG (Retrieval-Augmented Generation) system. While RAG searches the vector database for relevant project context and user preferences, context files provide immediate, guaranteed access to specific files you know are relevant. This combination ensures agents have both discovered context (via embeddings) and explicitly provided context (via context files).
 6. **GUI Advantage**: The GUI mode makes it easy to add/remove context files dynamically during a conversation
