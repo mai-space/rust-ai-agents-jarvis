@@ -194,9 +194,14 @@ async fn load_mcp_tools(config_path: &str) -> Result<Vec<Arc<dyn jarvis::tools::
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt::init();
 
     let args = Args::parse();
+    
+    // Only initialize tracing if not in TUI mode
+    // TUI mode uses the terminal for display, so logging would interfere with the UI
+    if !args.serve_tui {
+        tracing_subscriber::fmt::init();
+    }
 
     if let Some(Commands::Setup) = args.command {
         run_setup().await?;
@@ -371,9 +376,8 @@ async fn main() -> Result<()> {
         
         jarvis::orchestration::gui::start_gui_server(manager, args.gui_port, gui_config).await?;
     } else if args.serve_tui {
-        info!("Starting TUI...");
-        
         // Create a config with current settings for TUI
+        // Note: Logging is disabled in TUI mode to avoid interfering with the terminal display
         let tui_config = Config {
             ollama_host,
             ollama_port,
