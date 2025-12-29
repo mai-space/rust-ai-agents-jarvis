@@ -194,9 +194,14 @@ async fn load_mcp_tools(config_path: &str) -> Result<Vec<Arc<dyn jarvis::tools::
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt::init();
 
     let args = Args::parse();
+    
+    // Only initialize tracing if not in TUI mode
+    // TUI mode uses the terminal for display, so logging would interfere with the UI
+    if !args.serve_tui {
+        tracing_subscriber::fmt::init();
+    }
 
     if let Some(Commands::Setup) = args.command {
         run_setup().await?;
