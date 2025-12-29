@@ -21,6 +21,9 @@ use std::sync::Arc;
 use std::io;
 use tokio::sync::mpsc;
 
+// Maximum number of events to process per UI update iteration
+const MAX_EVENTS_PER_ITERATION: usize = 10;
+
 #[derive(Clone)]
 enum MessageType {
     User,
@@ -123,7 +126,8 @@ impl TuiState {
                 (MessageType::Plan, agent_name, format!("Plan: {}", plan))
             }
             AgentEvent::Handoff { from_agent, to_agent, reason, .. } => {
-                (MessageType::Handoff, from_agent.clone(), format!("Handing off to {} - {}", to_agent, reason))
+                let msg = format!("Handing off to {} - {}", to_agent, reason);
+                (MessageType::Handoff, from_agent, msg)
             }
             AgentEvent::TaskCompleted { agent_name, result, .. } => {
                 (MessageType::Event, agent_name, format!("✓ Task completed: {}", result))
@@ -222,9 +226,9 @@ async fn run_tui(
     loop {
         terminal.draw(|f| ui(f, state))?;
 
-        // Check for agent events (limit to 10 per iteration to avoid blocking)
+        // Check for agent events (limit per iteration to avoid blocking)
         let mut event_count = 0;
-        while event_count < 10 {
+        while event_count < MAX_EVENTS_PER_ITERATION {
             match event_rx.try_recv() {
                 Ok(event) => {
                     state.add_event(event);
