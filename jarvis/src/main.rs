@@ -96,6 +96,10 @@ struct Args {
     #[arg(long, default_value_t = 3000)]
     gui_port: u16,
 
+    /// Start TUI (terminal user interface)
+    #[arg(long)]
+    serve_tui: bool,
+
     /// Context files to provide to agents (comma-separated paths)
     #[arg(long, value_delimiter = ',')]
     context_files: Option<Vec<String>>,
@@ -366,6 +370,20 @@ async fn main() -> Result<()> {
         };
         
         jarvis::orchestration::gui::start_gui_server(manager, args.gui_port, gui_config).await?;
+    } else if args.serve_tui {
+        info!("Starting TUI...");
+        
+        // Create a config with current settings for TUI
+        let tui_config = Config {
+            ollama_host,
+            ollama_port,
+            model,
+            model_config,
+            database_url,
+            mcp_config,
+        };
+        
+        jarvis::orchestration::tui::start_tui(manager, tui_config).await?;
     } else if args.serve_acp {
         info!("Starting ACP server on port {}...", args.acp_port);
         jarvis::orchestration::acp::start_acp_server(manager, args.acp_port).await?;
