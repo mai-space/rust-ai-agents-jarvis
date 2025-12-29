@@ -376,9 +376,8 @@ async fn main() -> Result<()> {
         
         jarvis::orchestration::gui::start_gui_server(manager, args.gui_port, gui_config).await?;
     } else if args.serve_tui {
-        info!("Starting TUI...");
-        
         // Create a config with current settings for TUI
+        // Note: Logging is disabled in TUI mode to avoid interfering with the terminal display
         let tui_config = Config {
             ollama_host,
             ollama_port,
