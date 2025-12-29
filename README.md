@@ -42,6 +42,7 @@ Jarvis is a high-performance, autonomous AI agent framework written in Rust. It 
 - **Agent Client Protocol (ACP):** Standardized API for IDE integration (JetBrains, VS Code)
 - **Multi-backend LLM Support:** Primary support for Ollama (local LLMs), extensible via traits
 - **GUI Mode:** Modern web-based chat interface for intuitive interaction
+- **TUI Mode:** Terminal user interface for keyboard-driven, SSH-friendly interaction
 - **Cross-Platform:** Native support and installers for Linux, macOS, and Windows
 
 ## 🛠 Prerequisites
@@ -176,6 +177,32 @@ jarvis --serve-gui --gui-port 8080
 ```
 
 See [GUI Mode Documentation](docs/gui-mode.md) for detailed usage instructions.
+
+### Using the TUI Mode
+Jarvis also includes a Terminal User Interface (TUI) for a keyboard-driven, terminal-native experience:
+
+```bash
+jarvis --serve-tui
+```
+
+The TUI provides:
+- **Terminal Native**: Works entirely in your terminal, no browser needed
+- **Keyboard Shortcuts**: All operations accessible via keyboard
+- **File Context Support**: Interactively add files for context
+- **Agent Selection**: Choose which agent to use via interactive menu
+- **SSH Friendly**: Perfect for remote development over SSH
+- **Session Management**: Automatic session tracking
+
+Keyboard shortcuts:
+- `i` - Start typing a message
+- `Ctrl+D` - Send message
+- `f` - Add context file
+- `a` - Select agent
+- `n` - New chat
+- `?` - Help
+- `q` - Quit
+
+See [TUI Mode Documentation](docs/tui-mode.md) for detailed usage instructions.
 
 ## 🔌 Model Context Protocol (MCP) & IDE Integration
 
