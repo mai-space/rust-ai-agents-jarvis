@@ -132,7 +132,8 @@ impl TuiState {
                 (MessageType::Event, agent_name, format!("✗ Task failed: {}", error))
             }
             AgentEvent::AgentStarted { agent_name, .. } => {
-                (MessageType::Event, agent_name.clone(), format!("{} started", agent_name))
+                let msg = format!("{} started", agent_name);
+                (MessageType::Event, agent_name, msg)
             }
             AgentEvent::FileOperation { operation, path, .. } => {
                 let op_str = match operation {
@@ -221,9 +222,16 @@ async fn run_tui(
     loop {
         terminal.draw(|f| ui(f, state))?;
 
-        // Check for agent events
-        while let Ok(event) = event_rx.try_recv() {
-            state.add_event(event);
+        // Check for agent events (limit to 10 per iteration to avoid blocking)
+        let mut event_count = 0;
+        while event_count < 10 {
+            match event_rx.try_recv() {
+                Ok(event) => {
+                    state.add_event(event);
+                    event_count += 1;
+                }
+                Err(_) => break,
+            }
         }
 
         // Check for async results
