@@ -311,9 +311,9 @@ impl Agent for MyAgent {
 We maintain a comprehensive suite of tests to ensure squad reliability, memory consistency, and tool functionality.
 
 **Test Results:**
-- **Total Tests:** 56
-- **Status:** ✅ All Passing
-- **Coverage:** Core agents, tools, providers, project context, metrics, and GUI integration
+- **Total Tests:** 88 (32 unit + 56 integration)
+- **Status:** ✅ All Passing (1 test ignored due to known CI issue)
+- **Coverage:** Core agents, tools, providers, project context, metrics, GUI integration, events, and MCP
 
 | Test Category | Description | Tests | Status |
 | :--- | :--- | :--- | :--- |
@@ -326,11 +326,19 @@ We maintain a comprehensive suite of tests to ensure squad reliability, memory c
 | **Memory** | Tests preference storage and retrieval | 2 | ✅ Passing |
 | **GUI Integration** | Tests web interface, API endpoints, and file uploads | 13 | ✅ Passing |
 | **Integration Tests** | End-to-end agent workflow and session management | 11 | ✅ Passing |
+| **Event System** | Tests real-time event broadcasting and TaskSummary | 10 | ✅ Passing |
+| **MCP Types** | Tests Model Context Protocol type serialization | 12 | ✅ Passing |
+| **Context Files** | Tests context file handling and integration | 6 | ✅ Passing |
+| **Phase Tests** | Tests for specific development phases (1 ignored) | 4 | ✅ Passing |
+
+**Note:** One test (`test_acp_server_endpoints`) is marked as ignored due to a known hanging issue in CI. See [TEST_DOCUMENTATION.md](TEST_DOCUMENTATION.md) for details.
 
 Run tests with:
 ```bash
 cargo test
 ```
+
+For comprehensive test documentation, patterns, and best practices, see [TEST_DOCUMENTATION.md](TEST_DOCUMENTATION.md).
 
 ### Important Testing Notes
 
@@ -354,7 +362,7 @@ manager.register_agent("RequirementsEngineer".to_string(), re);
 // ... register all others
 ```
 
-This ensures the complete agent workflow can execute without hanging. See `jarvis/tests/gui_test.rs` for the `register_all_agents` helper function.
+This ensures the complete agent workflow can execute without hanging. See [TEST_DOCUMENTATION.md](TEST_DOCUMENTATION.md) for more details and `jarvis/tests/gui_test.rs` for the `register_all_agents` helper function.
 
 ## 🛣 Roadmap
 

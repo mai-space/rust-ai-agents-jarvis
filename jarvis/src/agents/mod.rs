@@ -387,7 +387,7 @@ pub async fn run_llm_agent(
                         broadcaster.plan_created(agent_name.clone(), plan.to_string()).await;
                     }
                     
-                    session_history.push(format!("System: Plan recorded. You can now proceed with execution or hand off to the appropriate agent."));
+                    session_history.push("System: Plan recorded. You can now proceed with execution or hand off to the appropriate agent.".to_string());
                 } else {
                     session_history.push("System: PLAN command requires content. Use PLAN <your_markdown_plan>".to_string());
                 }
