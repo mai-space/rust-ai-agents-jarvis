@@ -36,7 +36,7 @@ enum MessageType {
 #[derive(Clone)]
 struct Message {
     message_type: MessageType,
-    role: String,      // "user" or "assistant" or agent name
+    role: String,      // "user", "assistant", agent name, or "System"
     content: String,
     #[allow(dead_code)]
     timestamp: i64,
@@ -93,8 +93,14 @@ impl TuiState {
     }
 
     fn add_message(&mut self, role: String, content: String) {
+        let message_type = match role.as_str() {
+            "user" => MessageType::User,
+            "assistant" => MessageType::Assistant,
+            _ => MessageType::Assistant, // Default to Assistant for backwards compatibility
+        };
+        
         self.messages.push(Message {
-            message_type: if role == "user" { MessageType::User } else { MessageType::Assistant },
+            message_type,
             role,
             content,
             timestamp: chrono::Utc::now().timestamp(),
