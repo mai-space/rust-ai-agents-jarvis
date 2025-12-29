@@ -2,6 +2,7 @@ use crate::orchestration::Manager;
 use crate::config::Config;
 use crate::agents::ContextFile;
 use anyhow::Result;
+use chrono;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -429,8 +430,10 @@ fn ui(f: &mut Frame, state: &TuiState) {
 
     // Set cursor position when editing
     if state.mode == InputMode::Editing || state.mode == InputMode::AddFile {
+        // Clamp cursor position to prevent overflow
+        let cursor_x = state.cursor_position.min(u16::MAX as usize - 2) as u16;
         f.set_cursor(
-            chunks[3].x + state.cursor_position as u16 + 1,
+            chunks[3].x + cursor_x + 1,
             chunks[3].y + 1,
         );
     }
