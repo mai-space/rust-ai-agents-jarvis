@@ -189,14 +189,9 @@ pub async fn start_tui(manager: Arc<Manager>, _config: Config) -> Result<()> {
     let manager_clone = Arc::clone(&manager);
     tokio::spawn(async move {
         let mut event_stream = manager_clone.event_broadcaster.subscribe().await;
-        loop {
-            match event_stream.recv().await {
-                Some(event) => {
-                    if event_tx.send(event).is_err() {
-                        break; // Channel closed, exit
-                    }
-                }
-                None => break, // Stream ended
+        while let Some(event) = event_stream.recv().await {
+            if event_tx.send(event).is_err() {
+                break; // Channel closed, exit
             }
         }
     });
