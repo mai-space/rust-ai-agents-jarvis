@@ -1,6 +1,7 @@
 use crate::orchestration::Manager;
 use crate::config::Config;
 use crate::agents::ContextFile;
+use crate::events::AgentEvent;
 use anyhow::Result;
 use chrono;
 use crossterm::{
@@ -21,8 +22,21 @@ use std::io;
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
+enum MessageType {
+    User,
+    Assistant,
+    Thought,
+    ToolCall,
+    ToolResult,
+    Plan,
+    Handoff,
+    Event,
+}
+
+#[derive(Clone)]
 struct Message {
-    role: String,      // "user" or "assistant"
+    message_type: MessageType,
+    role: String,      // "user" or "assistant" or agent name
     content: String,
     #[allow(dead_code)]
     timestamp: i64,
@@ -80,6 +94,59 @@ impl TuiState {
 
     fn add_message(&mut self, role: String, content: String) {
         self.messages.push(Message {
+            message_type: if role == "user" { MessageType::User } else { MessageType::Assistant },
+            role,
+            content,
+            timestamp: chrono::Utc::now().timestamp(),
+        });
+    }
+
+    fn add_event(&mut self, event: AgentEvent) {
+        let (message_type, role, content) = match event {
+            AgentEvent::AgentThought { agent_name, thought, .. } => {
+                (MessageType::Thought, agent_name, thought)
+            }
+            AgentEvent::ToolCall { agent_name, tool_name, input_summary, .. } => {
+                (MessageType::ToolCall, agent_name, format!("Calling tool: {} - {}", tool_name, input_summary))
+            }
+            AgentEvent::ToolResult { agent_name, tool_name, output_summary, success, .. } => {
+                let status = if success { "✓" } else { "✗" };
+                (MessageType::ToolResult, agent_name, format!("{} Tool result: {} - {}", status, tool_name, output_summary))
+            }
+            AgentEvent::PlanCreated { agent_name, plan, .. } => {
+                (MessageType::Plan, agent_name, format!("Plan: {}", plan))
+            }
+            AgentEvent::Handoff { from_agent, to_agent, reason, .. } => {
+                (MessageType::Handoff, from_agent.clone(), format!("Handing off to {} - {}", to_agent, reason))
+            }
+            AgentEvent::TaskCompleted { agent_name, result, .. } => {
+                (MessageType::Event, agent_name, format!("✓ Task completed: {}", result))
+            }
+            AgentEvent::TaskFailed { agent_name, error, .. } => {
+                (MessageType::Event, agent_name, format!("✗ Task failed: {}", error))
+            }
+            AgentEvent::AgentStarted { agent_name, .. } => {
+                (MessageType::Event, agent_name.clone(), format!("{} started", agent_name))
+            }
+            AgentEvent::FileOperation { operation, path, .. } => {
+                let op_str = match operation {
+                    crate::events::FileOpType::Created => "Created",
+                    crate::events::FileOpType::Modified => "Modified",
+                    crate::events::FileOpType::Deleted => "Deleted",
+                    crate::events::FileOpType::Read => "Read",
+                };
+                (MessageType::Event, "System".to_string(), format!("{} file: {}", op_str, path))
+            }
+            AgentEvent::LoopDetected { agents, .. } => {
+                (MessageType::Event, "System".to_string(), format!("⚠ Loop detected: {:?}", agents))
+            }
+            AgentEvent::HumanInterventionRequested { agent_name, reason, .. } => {
+                (MessageType::Event, agent_name, format!("🤔 Human intervention requested: {}", reason))
+            }
+        };
+
+        self.messages.push(Message {
+            message_type,
             role,
             content,
             timestamp: chrono::Utc::now().timestamp(),
@@ -103,8 +170,27 @@ pub async fn start_tui(manager: Arc<Manager>, _config: Config) -> Result<()> {
     
     // Create channel for async task results
     let (tx, mut rx) = mpsc::unbounded_channel::<Result<(String, Option<String>)>>();
+    
+    // Create channel for agent events
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AgentEvent>();
+    
+    // Subscribe to agent events
+    let manager_clone = Arc::clone(&manager);
+    tokio::spawn(async move {
+        let mut event_stream = manager_clone.event_broadcaster.subscribe().await;
+        loop {
+            match event_stream.recv().await {
+                Some(event) => {
+                    if event_tx.send(event).is_err() {
+                        break; // Channel closed, exit
+                    }
+                }
+                None => break, // Stream ended
+            }
+        }
+    });
 
-    let res = run_tui(&mut terminal, &mut state, manager, tx, &mut rx).await;
+    let res = run_tui(&mut terminal, &mut state, manager, tx, &mut rx, &mut event_rx).await;
 
     // Restore terminal
     disable_raw_mode()?;
@@ -124,9 +210,15 @@ async fn run_tui(
     manager: Arc<Manager>,
     tx: mpsc::UnboundedSender<Result<(String, Option<String>)>>,
     rx: &mut mpsc::UnboundedReceiver<Result<(String, Option<String>)>>,
+    event_rx: &mut mpsc::UnboundedReceiver<AgentEvent>,
 ) -> Result<()> {
     loop {
         terminal.draw(|f| ui(f, state))?;
+
+        // Check for agent events
+        while let Ok(event) = event_rx.try_recv() {
+            state.add_event(event);
+        }
 
         // Check for async results
         if let Ok(result) = rx.try_recv() {
@@ -368,13 +460,17 @@ fn ui(f: &mut Frame, state: &TuiState) {
         .iter()
         .skip(state.scroll_offset)
         .map(|m| {
-            let style = if m.role == "user" {
-                Style::default().fg(Color::Cyan)
-            } else {
-                Style::default().fg(Color::Green)
+            let (style, prefix) = match m.message_type {
+                MessageType::User => (Style::default().fg(Color::Cyan), "You: ".to_string()),
+                MessageType::Assistant => (Style::default().fg(Color::Green), "AI: ".to_string()),
+                MessageType::Thought => (Style::default().fg(Color::Yellow), format!("[{}] 💭 ", m.role)),
+                MessageType::ToolCall => (Style::default().fg(Color::Magenta), format!("[{}] 🔧 ", m.role)),
+                MessageType::ToolResult => (Style::default().fg(Color::Blue), format!("[{}] ", m.role)),
+                MessageType::Plan => (Style::default().fg(Color::LightGreen), format!("[{}] 📋 ", m.role)),
+                MessageType::Handoff => (Style::default().fg(Color::LightYellow), format!("[{}] ➡️ ", m.role)),
+                MessageType::Event => (Style::default().fg(Color::Gray), format!("[{}] ", m.role)),
             };
             
-            let prefix = if m.role == "user" { "You: " } else { "AI: " };
             let content = format!("{}{}", prefix, m.content);
             
             ListItem::new(Text::from(content)).style(style)
