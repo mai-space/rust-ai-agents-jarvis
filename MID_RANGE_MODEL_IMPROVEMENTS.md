@@ -185,9 +185,11 @@ Examples use visual markers to make patterns immediately recognizable:
 ❌ WRONG: Let me think about this... I should probably...
 ✅ RIGHT: THOUGHT: I should check the project structure.
 
-❌ WRONG: ```
+❌ WRONG:
+```
 CALL list_files {"path": "."}
 ```
+
 ✅ RIGHT: CALL list_files {"path": "."}
 ```
 
