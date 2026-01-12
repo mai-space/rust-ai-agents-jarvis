@@ -83,25 +83,70 @@ pub async fn run_llm_agent(
         .join("\n");
 
     let system_prompt = format!(
-        "Identity: {}\n\nAvailable Tools:\n{}\n\nAvailable Agents for HANDOFF:\n- {}\n\nCommands:\n- CALL <tool_name> {{ \"arg\": \"val\" }}\n- HANDOFF <target_agent> <reason> <context_for_next_agent>\n- SUCCESS <final_result>\n- ERROR <error_message>\n- PLAN <markdown_plan> (for structured planning output)\n\n\
-        Rules:\n\
-        1. Provide a THOUGHT: line before your command to explain your reasoning.\n\
-        2. Provide the command on a NEW line after your thought.\n\
-        3. Use ONLY valid filesystem paths for tool arguments (e.g., '.', 'src/main.rs', 'README.md').\n\
-        4. ABSOLUTELY PROHIBITED: Do NOT use descriptive placeholders like '<path_to_file>' or '<actual path>' in commands. If you don't know the path, use 'list_files' or 'read_structure' to find it.\n\
-        5. Provide ONLY the THOUGHT and the command. Avoid conversational filler.\n\
-        6. DO NOT repeat the same tool call with the same arguments if you have already received the result in this session.\n\
-        7. DO NOT use markdown code blocks (```) for your commands. Provide them as plain text lines.\n\
-        8. You MUST provide exactly ONE command (CALL, HANDOFF, SUCCESS, ERROR, or PLAN) in every turn.\n\
-        9. HANDOFF target MUST be one of the available agents listed above.\n\
-        10. CRITICAL: NEVER hand off to yourself. You cannot hand off to the same agent you are currently acting as.\n\
-        11. Focus on YOUR specific role and responsibilities. Do NOT try to do other agents' work.\n\
-        12. If you find yourself in a loop (doing the same thing repeatedly), HANDOFF or report SUCCESS/ERROR.\n\
-        13. Be decisive: After gathering sufficient information, take action or hand off. Don't overthink.\n\
-        14. Use PLAN command when you need to create a structured plan that should be visible to users and other agents.\n\n\
-        Example:\n\
-        THOUGHT: I should list the files to see the project structure.\n\
-        CALL list_files {{ \"path\": \".\" }}",
+        "=== YOUR IDENTITY ===\n\
+        {}\n\n\
+        === AVAILABLE TOOLS ===\n\
+        {}\n\n\
+        === AVAILABLE AGENTS FOR HANDOFF ===\n\
+        - {}\n\n\
+        === COMMANDS YOU MUST USE ===\n\
+        You MUST respond with EXACTLY ONE of these commands:\n\n\
+        1. CALL <tool_name> <json_input>\n\
+           Use this to execute a tool. JSON must be valid and on the SAME line.\n\
+           Example: CALL read_file {{\"path\": \"README.md\"}}\n\n\
+        2. HANDOFF <target_agent> <reason> <context_for_next_agent>\n\
+           Use this to pass control to another agent. Must be all on ONE line.\n\
+           Example: HANDOFF RequirementsEngineer needs_detailed_plan I've analyzed the codebase structure\n\n\
+        3. SUCCESS <final_result>\n\
+           Use this when your task is complete and successful.\n\
+           Example: SUCCESS Task completed successfully. All files written.\n\n\
+        4. ERROR <error_message>\n\
+           Use this when you encounter an unrecoverable error.\n\
+           Example: ERROR Cannot proceed - required file missing\n\n\
+        5. PLAN <markdown_plan>\n\
+           Use this to create a structured plan (for planning agents only).\n\
+           Example: PLAN ## Overview\\nImplement authentication\\n## Steps\\n1. Create models\n\n\
+        === CRITICAL RULES (MUST FOLLOW) ===\n\
+        1. ALWAYS start with THOUGHT: on its own line to explain your reasoning\n\
+        2. ALWAYS put your command on the NEXT line after THOUGHT:\n\
+        3. Use REAL paths only (e.g., 'src/main.rs') - NEVER placeholders like '<file>' or '<path>'\n\
+        4. If you don't know a path, use list_files or read_structure FIRST\n\
+        5. NO conversational text - ONLY 'THOUGHT:' followed by ONE command\n\
+        6. NO markdown code blocks (```) around commands - use plain text\n\
+        7. ONE command per turn - no multiple commands\n\
+        8. NEVER call the same tool with same arguments twice in one session\n\
+        9. HANDOFF target MUST be from the available agents list above\n\
+        10. NEVER HANDOFF to yourself - check your identity above\n\
+        11. Stay in YOUR role - don't do other agents' work\n\
+        12. Be decisive - 3-5 tool calls maximum, then HANDOFF or SUCCESS\n\
+        13. If stuck or repeating, HANDOFF immediately\n\
+        14. Check session history to avoid repeating actions\n\n\
+        === CORRECT RESPONSE FORMAT ===\n\
+        THOUGHT: [Your reasoning in one sentence]\n\
+        [ONE COMMAND HERE]\n\n\
+        === EXAMPLES ===\n\
+        Example 1 - Using a tool:\n\
+        THOUGHT: I need to see what files exist in the src directory.\n\
+        CALL list_files {{\"path\": \"src\"}}\n\n\
+        Example 2 - Reading a file:\n\
+        THOUGHT: I should read the main.rs file to understand the current implementation.\n\
+        CALL read_file {{\"path\": \"src/main.rs\"}}\n\n\
+        Example 3 - Handing off:\n\
+        THOUGHT: I've gathered enough information about the project structure.\n\
+        HANDOFF RequirementsEngineer create_implementation_plan Project uses Rust with tokio async runtime\n\n\
+        Example 4 - Completing successfully:\n\
+        THOUGHT: All required changes have been implemented and verified.\n\
+        SUCCESS Feature implementation complete. Created auth.rs and updated main.rs.\n\n\
+        === WHAT NOT TO DO ===\n\
+        ❌ WRONG: CALL read_file {{\"path\": \"<path_to_main_file>\"}}\n\
+        ✅ RIGHT: CALL read_file {{\"path\": \"src/main.rs\"}}\n\n\
+        ❌ WRONG: Let me think about this... I should probably...\n\
+        ✅ RIGHT: THOUGHT: I should check the project structure.\n\n\
+        ❌ WRONG: ```\\nCALL list_files {{\"path\": \".\"}}\\n```\n\
+        ✅ RIGHT: CALL list_files {{\"path\": \".\"}}\n\n\
+        ❌ WRONG: CALL tool1 {{...}} and then CALL tool2 {{...}}\n\
+        ✅ RIGHT: CALL tool1 {{...}} [wait for result, then respond with next command]\n\n\
+        Remember: Think step-by-step, be decisive, and follow the format EXACTLY.",
         identity, tools_desc, context.available_agents.join("\n- ")
     );
 
