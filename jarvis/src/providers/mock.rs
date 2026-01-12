@@ -7,24 +7,35 @@ pub struct MockLlm;
 #[async_trait]
 impl LlmProvider for MockLlm {
     async fn generate(&self, prompt: &str) -> Result<String> {
-        if prompt.contains("Identity: ProductOwner") && prompt.contains("- RequirementsEngineer") {
-            Ok("HANDOFF RequirementsEngineer InitialPlanningComplete PO_Analyzed_Codebase".to_string())
-        } else if prompt.contains("Identity: RequirementsEngineer") && prompt.contains("- SeniorDeveloper") {
-            Ok("HANDOFF SeniorDeveloper PlanGenerated 1.Implement_Login".to_string())
-        } else if prompt.contains("Identity: SeniorDeveloper") && prompt.contains("- AccessibilityExpert") {
-            Ok("HANDOFF AccessibilityExpert ImplementationComplete Dev_Implemented_Login".to_string())
-        } else if prompt.contains("Identity: AccessibilityExpert") && prompt.contains("- SEOExpert") {
-            Ok("HANDOFF SEOExpert AccessibilityCheckPassed Accessibility_Verified".to_string())
-        } else if prompt.contains("Identity: SEOExpert") && prompt.contains("- SecurityExpert") {
-            Ok("HANDOFF SecurityExpert SEOCheckPassed SEO_Verified".to_string())
-        } else if prompt.contains("Identity: QATester") && prompt.contains("- Librarian") {
-            Ok("HANDOFF Librarian QAVerificationPassed QA_Verified".to_string())
-        } else if prompt.contains("Identity: SecurityExpert") && prompt.contains("- QATester") {
-            Ok("HANDOFF QATester SecurityCheckPassed Security_Verified".to_string())
-        } else if prompt.contains("Identity: Librarian") {
-            Ok("SUCCESS Task finalized by Librarian".to_string())
-        } else {
-            Ok("SUCCESS Default mock response".to_string())
+        // Extract agent name from prompt - works with both old and new prompt formats
+        // Look for the agent identity which is always present
+        let agent_names = [
+            "ProductOwner",
+            "RequirementsEngineer", 
+            "SeniorDeveloper",
+            "AccessibilityExpert",
+            "SEOExpert",
+            "SecurityExpert",
+            "QATester",
+            "Librarian",
+        ];
+        
+        let agent_name = agent_names.iter()
+            .find(|&&name| prompt.contains(&format!("{}:", name)) || prompt.contains(&format!("{} ", name)))
+            .map(|&name| name)
+            .unwrap_or("");
+
+        // Generate appropriate response based on agent
+        match agent_name {
+            "ProductOwner" => Ok("THOUGHT: I have analyzed the task.\nHANDOFF RequirementsEngineer InitialPlanningComplete PO_Analyzed_Codebase".to_string()),
+            "RequirementsEngineer" => Ok("THOUGHT: I have created the detailed plan.\nHANDOFF SeniorDeveloper PlanGenerated 1.Implement_Login".to_string()),
+            "SeniorDeveloper" => Ok("THOUGHT: I have implemented the code.\nHANDOFF AccessibilityExpert ImplementationComplete Dev_Implemented_Login".to_string()),
+            "AccessibilityExpert" => Ok("THOUGHT: Accessibility check complete.\nHANDOFF SEOExpert AccessibilityCheckPassed Accessibility_Verified".to_string()),
+            "SEOExpert" => Ok("THOUGHT: SEO check complete.\nHANDOFF SecurityExpert SEOCheckPassed SEO_Verified".to_string()),
+            "SecurityExpert" => Ok("THOUGHT: Security check complete.\nHANDOFF QATester SecurityCheckPassed Security_Verified".to_string()),
+            "QATester" => Ok("THOUGHT: QA verification complete.\nHANDOFF Librarian QAVerificationPassed QA_Verified".to_string()),
+            "Librarian" => Ok("THOUGHT: Finalizing the task.\nSUCCESS Task finalized by Librarian".to_string()),
+            _ => Ok("SUCCESS Default mock response".to_string()),
         }
     }
 
