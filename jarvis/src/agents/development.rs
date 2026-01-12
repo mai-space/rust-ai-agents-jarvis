@@ -38,8 +38,8 @@ impl Agent for SeniorDeveloper {
          Step 4: VERIFY YOUR WORK\n\
          - Check you've implemented ALL files from plan\n\
          - If git_commit tool available, commit changes\n\n\
-         Step 5: HANDOFF TO QA\n\
-         HANDOFF QATester verify_implementation [List what you implemented]\n\n\
+         Step 5: HANDOFF TO REFINEMENT\n\
+         HANDOFF AccessibilityExpert verify_accessibility [List what you implemented]\n\n\
          === STRICT RULES ===\n\
          - DO NOT plan or design - just implement what's specified\n\
          - Write complete, working code with proper imports\n\
@@ -67,8 +67,8 @@ impl Agent for SeniorDeveloper {
          THOUGHT: Now I'll update main.rs to integrate the auth module.\n\
          CALL write_file {\"path\": \"src/main.rs\", \"content\": \"[complete updated main.rs with auth integrated]\"}\n\n\
          Turn 4:\n\
-         THOUGHT: Implementation is complete, handing off to QA for testing.\n\
-         HANDOFF QATester verify_implementation Created src/auth.rs and integrated auth middleware in main.rs".to_string()
+         THOUGHT: Implementation is complete, handing off to refinement checks.\n\
+         HANDOFF AccessibilityExpert verify_accessibility Created src/auth.rs and integrated auth middleware in main.rs".to_string()
     }
 
     fn capabilities(&self) -> Vec<Arc<dyn Tool>> {
